@@ -212,8 +212,8 @@ defmodule Jacalendar.MarkdownParser do
         |> Enum.drop(start_idx + 1)
         |> Enum.take_while(fn line ->
           not (Regex.match?(~r/^### Day \d+:/, line) or
-               String.starts_with?(line, "---") or
-               String.starts_with?(line, "## "))
+                 String.starts_with?(line, "---") or
+                 String.starts_with?(line, "## "))
         end)
 
       items = parse_items(day_lines)
@@ -306,12 +306,15 @@ defmodule Jacalendar.MarkdownParser do
       Map.has_key?(@fuzzy_time_map, clean_label) ->
         fuzzy = Map.fetch!(@fuzzy_time_map, clean_label)
         parenthetical = Regex.run(~r/\(([^)]+)\)/, label)
-        desc = cond do
-          rest != "" && parenthetical -> "#{elem(List.to_tuple(parenthetical), 1)}: #{rest}"
-          rest != "" -> rest
-          parenthetical -> elem(List.to_tuple(parenthetical), 1)
-          true -> ""
-        end
+
+        desc =
+          cond do
+            rest != "" && parenthetical -> "#{elem(List.to_tuple(parenthetical), 1)}: #{rest}"
+            rest != "" -> rest
+            parenthetical -> elem(List.to_tuple(parenthetical), 1)
+            true -> ""
+          end
+
         {{:fuzzy, fuzzy}, clean_description(desc)}
 
       true ->
