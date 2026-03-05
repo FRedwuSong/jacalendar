@@ -35,3 +35,5 @@ jacalendar-*.tar
 npm-debug.log
 /assets/node_modules/
 
+.spectra/
+openspec/.vector-search.db*
