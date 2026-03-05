@@ -137,4 +137,161 @@ defmodule JacalendarWeb.ScheduleLiveTest do
       assert html =~ "14:30"
     end
   end
+
+  describe "description editing" do
+    setup %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#markdown-form", %{markdown: @valid_markdown})
+      |> render_submit()
+
+      %{view: view}
+    end
+
+    test "clicking description shows text input", %{view: view} do
+      # item-0-0 is "抵達成田機場" (first item, day 0)
+      view |> element("#item-0-0 p", "抵達成田機場") |> render_click()
+      assert has_element?(view, "#desc-input-0-0")
+    end
+
+    test "submitting edit updates description", %{view: view} do
+      view |> element("#item-0-0 p", "抵達成田機場") |> render_click()
+
+      view
+      |> form("#desc-form-0-0", %{value: "抵達羽田機場"})
+      |> render_submit()
+
+      html = render(view)
+      assert html =~ "抵達羽田機場"
+      refute has_element?(view, "#desc-input-0-0")
+    end
+
+    test "pressing Escape cancels description edit", %{view: view} do
+      view |> element("#item-0-0 p", "抵達成田機場") |> render_click()
+      assert has_element?(view, "#desc-input-0-0")
+
+      render_keydown(view, "cancel_edit", %{"key" => "Escape"})
+      refute has_element?(view, "#desc-input-0-0")
+      assert render(view) =~ "抵達成田機場"
+    end
+
+    test "empty description is allowed", %{view: view} do
+      view |> element("#item-0-0 p", "抵達成田機場") |> render_click()
+
+      view
+      |> form("#desc-form-0-0", %{value: ""})
+      |> render_submit()
+
+      refute has_element?(view, "#desc-input-0-0")
+    end
+  end
+
+  describe "sub-item editing" do
+    setup %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#markdown-form", %{markdown: @valid_markdown})
+      |> render_submit()
+
+      %{view: view}
+    end
+
+    test "clicking sub-item shows text input", %{view: view} do
+      # item-0-1 is "搭巴士" which has sub-item "利木津巴士直達新宿"
+      view |> element("#item-0-1 p", "利木津巴士直達新宿") |> render_click()
+      assert has_element?(view, "#sub-input-0-1-0")
+    end
+
+    test "submitting edit updates sub-item", %{view: view} do
+      view |> element("#item-0-1 p", "利木津巴士直達新宿") |> render_click()
+
+      view
+      |> form("#sub-form-0-1-0", %{value: "搭 N'EX 到新宿"})
+      |> render_submit()
+
+      html = render(view)
+      assert html =~ "搭 N&#39;EX 到新宿"
+      refute has_element?(view, "#sub-input-0-1-0")
+    end
+
+    test "pressing Escape cancels sub-item edit", %{view: view} do
+      view |> element("#item-0-1 p", "利木津巴士直達新宿") |> render_click()
+      assert has_element?(view, "#sub-input-0-1-0")
+
+      render_keydown(view, "cancel_edit", %{"key" => "Escape"})
+      refute has_element?(view, "#sub-input-0-1-0")
+      assert render(view) =~ "利木津巴士直達新宿"
+    end
+  end
+
+  describe "sub-item deletion" do
+    setup %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#markdown-form", %{markdown: @valid_markdown})
+      |> render_submit()
+
+      %{view: view}
+    end
+
+    test "clicking delete removes sub-item", %{view: view} do
+      html = render(view)
+      assert html =~ "利木津巴士直達新宿"
+
+      view
+      |> element("#item-0-1 button[phx-click=delete_sub_item]")
+      |> render_click()
+
+      html = render(view)
+      refute html =~ "利木津巴士直達新宿"
+    end
+  end
+
+  describe "sub-item addition" do
+    setup %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#markdown-form", %{markdown: @valid_markdown})
+      |> render_submit()
+
+      %{view: view}
+    end
+
+    test "clicking add button shows text input", %{view: view} do
+      view
+      |> element("#item-0-0 button[phx-click=add_sub_item]")
+      |> render_click()
+
+      assert has_element?(view, "#new-sub-input-0-0")
+    end
+
+    test "submitting new sub-item adds it to list", %{view: view} do
+      view
+      |> element("#item-0-0 button[phx-click=add_sub_item]")
+      |> render_click()
+
+      view
+      |> form("#new-sub-form-0-0", %{value: "記得帶護照"})
+      |> render_submit()
+
+      html = render(view)
+      assert html =~ "記得帶護照"
+      refute has_element?(view, "#new-sub-input-0-0")
+    end
+
+    test "pressing Escape cancels new sub-item", %{view: view} do
+      view
+      |> element("#item-0-0 button[phx-click=add_sub_item]")
+      |> render_click()
+
+      assert has_element?(view, "#new-sub-input-0-0")
+
+      render_keydown(view, "cancel_edit", %{"key" => "Escape"})
+      refute has_element?(view, "#new-sub-input-0-0")
+    end
+  end
 end
