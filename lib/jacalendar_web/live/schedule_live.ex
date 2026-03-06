@@ -2,6 +2,7 @@ defmodule JacalendarWeb.ScheduleLive do
   use JacalendarWeb, :live_view
 
   alias Jacalendar.MarkdownParser
+  alias Jacalendar.Itineraries
   alias Phoenix.LiveView.JS
 
   @fuzzy_labels %{
@@ -11,33 +12,44 @@ defmodule JacalendarWeb.ScheduleLive do
   }
 
   @impl true
-  def mount(_params, _session, socket) do
-    {:ok,
-     socket
-     |> assign(:mode, :input)
-     |> assign(:itinerary, nil)
-     |> assign(:current_time, nil)
-     |> assign(:current_date, nil)
-     |> assign(:editing, nil)
-     |> assign(:parse_error, nil)
-     |> allow_upload(:markdown_file, accept: ~w(.md .txt .markdown), max_entries: 1)}
+  def mount(params, _session, socket) do
+    socket =
+      socket
+      |> assign(:current_time, nil)
+      |> assign(:current_date, nil)
+      |> assign(:editing, nil)
+      |> assign(:parse_error, nil)
+
+    case params do
+      %{"id" => id} ->
+        itinerary = Itineraries.get_itinerary!(id)
+
+        {:ok,
+         socket
+         |> assign(:mode, :schedule)
+         |> assign(:itinerary, itinerary)
+         |> assign(:itineraries, [])}
+
+      _ ->
+        itineraries = Itineraries.list_itineraries()
+
+        {:ok,
+         socket
+         |> assign(:mode, :input)
+         |> assign(:itinerary, nil)
+         |> assign(:itineraries, itineraries)
+         |> allow_upload(:markdown_file, accept: ~w(.md .txt .markdown), max_entries: 1)}
+    end
+  end
+
+  @impl true
+  def handle_params(_params, _uri, socket) do
+    {:noreply, socket}
   end
 
   @impl true
   def handle_event("parse", %{"markdown" => markdown}, socket) do
-    case MarkdownParser.parse(markdown) do
-      {:ok, itinerary} ->
-        socket =
-          socket
-          |> assign(:mode, :schedule)
-          |> assign(:itinerary, itinerary)
-          |> assign(:parse_error, nil)
-
-        {:noreply, socket}
-
-      {:error, reason} ->
-        {:noreply, assign(socket, :parse_error, reason)}
-    end
+    parse_and_save(markdown, socket)
   end
 
   def handle_event("validate_upload", _params, socket) do
@@ -48,21 +60,8 @@ defmodule JacalendarWeb.ScheduleLive do
     path = String.trim(path)
 
     case File.read(path) do
-      {:ok, content} ->
-        case MarkdownParser.parse(content) do
-          {:ok, itinerary} ->
-            {:noreply,
-             socket
-             |> assign(:mode, :schedule)
-             |> assign(:itinerary, itinerary)
-             |> assign(:parse_error, nil)}
-
-          {:error, reason} ->
-            {:noreply, assign(socket, :parse_error, reason)}
-        end
-
-      {:error, reason} ->
-        {:noreply, assign(socket, :parse_error, "無法讀取檔案: #{inspect(reason)}")}
+      {:ok, content} -> parse_and_save(content, socket)
+      {:error, reason} -> {:noreply, assign(socket, :parse_error, "無法讀取檔案: #{inspect(reason)}")}
     end
   end
 
@@ -72,25 +71,17 @@ defmodule JacalendarWeb.ScheduleLive do
         {:ok, File.read!(path)}
       end)
 
-    case MarkdownParser.parse(markdown) do
-      {:ok, itinerary} ->
-        {:noreply,
-         socket
-         |> assign(:mode, :schedule)
-         |> assign(:itinerary, itinerary)
-         |> assign(:parse_error, nil)}
-
-      {:error, reason} ->
-        {:noreply, assign(socket, :parse_error, reason)}
-    end
+    parse_and_save(markdown, socket)
   end
 
   def handle_event("back_to_input", _params, socket) do
-    {:noreply,
-     socket
-     |> assign(:mode, :input)
-     |> assign(:itinerary, nil)
-     |> assign(:editing, nil)}
+    {:noreply, push_navigate(socket, to: "/")}
+  end
+
+  def handle_event("delete_itinerary", %{"id" => id}, socket) do
+    itinerary = Itineraries.get_itinerary!(id)
+    {:ok, _} = Itineraries.delete_itinerary(itinerary)
+    {:noreply, push_navigate(socket, to: "/")}
   end
 
   def handle_event("client_time", %{"time" => time_str, "date" => date_str}, socket) do
@@ -109,178 +100,104 @@ defmodule JacalendarWeb.ScheduleLive do
      |> assign(:current_date, current_date)}
   end
 
-  def handle_event("edit_time", %{"day-idx" => day_idx_str, "item-idx" => item_idx_str}, socket) do
-    day_idx = String.to_integer(day_idx_str)
-    item_idx = String.to_integer(item_idx_str)
-    {:noreply, assign(socket, :editing, {:time, day_idx, item_idx})}
+  def handle_event("edit_time", %{"item-id" => item_id_str}, socket) do
+    {:noreply, assign(socket, :editing, {:time, String.to_integer(item_id_str)})}
   end
 
   def handle_event("cancel_edit", _params, socket) do
     {:noreply, assign(socket, :editing, nil)}
   end
 
-  def handle_event("edit_description", %{"day-idx" => di, "item-idx" => ii}, socket) do
-    {:noreply,
-     assign(socket, :editing, {:description, String.to_integer(di), String.to_integer(ii)})}
-  end
-
-  def handle_event("edit_sub_item", %{"day-idx" => di, "item-idx" => ii, "sub-idx" => si}, socket) do
-    {:noreply,
-     assign(
-       socket,
-       :editing,
-       {:sub_item, String.to_integer(di), String.to_integer(ii), String.to_integer(si)}
-     )}
-  end
-
-  def handle_event(
-        "save_sub_item",
-        %{"day-idx" => di, "item-idx" => ii, "sub-idx" => si, "value" => value},
-        socket
-      ) do
-    day_idx = String.to_integer(di)
-    item_idx = String.to_integer(ii)
-    sub_idx = String.to_integer(si)
-
-    itinerary = update_sub_item(socket.assigns.itinerary, day_idx, item_idx, sub_idx, value)
-
-    {:noreply,
-     socket
-     |> assign(:itinerary, itinerary)
-     |> assign(:editing, nil)}
-  end
-
-  def handle_event("add_sub_item", %{"day-idx" => di, "item-idx" => ii}, socket) do
-    {:noreply,
-     assign(socket, :editing, {:new_sub_item, String.to_integer(di), String.to_integer(ii)})}
-  end
-
-  def handle_event(
-        "save_new_sub_item",
-        %{"day-idx" => di, "item-idx" => ii, "value" => value},
-        socket
-      ) do
-    day_idx = String.to_integer(di)
-    item_idx = String.to_integer(ii)
-
-    if String.trim(value) == "" do
-      {:noreply, assign(socket, :editing, nil)}
-    else
-      itinerary = append_sub_item(socket.assigns.itinerary, day_idx, item_idx, String.trim(value))
-
-      {:noreply,
-       socket
-       |> assign(:itinerary, itinerary)
-       |> assign(:editing, nil)}
-    end
-  end
-
-  def handle_event(
-        "delete_sub_item",
-        %{"day-idx" => di, "item-idx" => ii, "sub-idx" => si},
-        socket
-      ) do
-    day_idx = String.to_integer(di)
-    item_idx = String.to_integer(ii)
-    sub_idx = String.to_integer(si)
-
-    itinerary = delete_sub_item(socket.assigns.itinerary, day_idx, item_idx, sub_idx)
-
-    {:noreply,
-     socket
-     |> assign(:itinerary, itinerary)
-     |> assign(:editing, nil)}
-  end
-
-  def handle_event(
-        "save_description",
-        %{"day-idx" => di, "item-idx" => ii, "value" => value},
-        socket
-      ) do
-    day_idx = String.to_integer(di)
-    item_idx = String.to_integer(ii)
-
-    itinerary =
-      update_item_field(socket.assigns.itinerary, day_idx, item_idx, :description, value)
-
-    {:noreply,
-     socket
-     |> assign(:itinerary, itinerary)
-     |> assign(:editing, nil)}
-  end
-
-  def handle_event(
-        "save_time",
-        %{"day-idx" => day_idx_str, "item-idx" => item_idx_str, "time" => time_str},
-        socket
-      ) do
-    day_idx = String.to_integer(day_idx_str)
-    item_idx = String.to_integer(item_idx_str)
+  def handle_event("save_time", %{"item-id" => item_id_str, "time" => time_str}, socket) do
+    item_id = String.to_integer(item_id_str)
 
     case parse_time_input(time_str) do
       {:ok, time} ->
-        itinerary = update_item_time(socket.assigns.itinerary, day_idx, item_idx, time)
-
-        {:noreply,
-         socket
-         |> assign(:itinerary, itinerary)
-         |> assign(:editing, nil)}
+        item = Itineraries.get_item!(item_id)
+        {:ok, _} = Itineraries.update_item(item, %{time_type: "exact", time_value: time})
+        {:noreply, reload_itinerary(socket)}
 
       :error ->
         {:noreply, socket}
     end
   end
 
-  defp append_sub_item(itinerary, day_idx, item_idx, value) do
-    days =
-      List.update_at(itinerary.days, day_idx, fn day ->
-        items =
-          List.update_at(day.items, item_idx, fn item ->
-            %{item | sub_items: item.sub_items ++ [value]}
-          end)
-
-        %{day | items: items}
-      end)
-
-    %{itinerary | days: days}
+  def handle_event("edit_description", %{"item-id" => item_id_str}, socket) do
+    {:noreply, assign(socket, :editing, {:description, String.to_integer(item_id_str)})}
   end
 
-  defp delete_sub_item(itinerary, day_idx, item_idx, sub_idx) do
-    days =
-      List.update_at(itinerary.days, day_idx, fn day ->
-        items =
-          List.update_at(day.items, item_idx, fn item ->
-            %{item | sub_items: List.delete_at(item.sub_items, sub_idx)}
-          end)
-
-        %{day | items: items}
-      end)
-
-    %{itinerary | days: days}
+  def handle_event("save_description", %{"item-id" => item_id_str, "value" => value}, socket) do
+    item_id = String.to_integer(item_id_str)
+    item = Itineraries.get_item!(item_id)
+    {:ok, _} = Itineraries.update_item(item, %{description: value})
+    {:noreply, reload_itinerary(socket)}
   end
 
-  defp update_sub_item(itinerary, day_idx, item_idx, sub_idx, value) do
-    days =
-      List.update_at(itinerary.days, day_idx, fn day ->
-        items =
-          List.update_at(day.items, item_idx, fn item ->
-            %{item | sub_items: List.replace_at(item.sub_items, sub_idx, value)}
-          end)
-
-        %{day | items: items}
-      end)
-
-    %{itinerary | days: days}
+  def handle_event("edit_sub_item", %{"item-id" => item_id_str, "sub-idx" => si}, socket) do
+    {:noreply,
+     assign(socket, :editing, {:sub_item, String.to_integer(item_id_str), String.to_integer(si)})}
   end
 
-  defp update_item_field(itinerary, day_idx, item_idx, field, value) do
-    days =
-      List.update_at(itinerary.days, day_idx, fn day ->
-        items = List.update_at(day.items, item_idx, fn item -> Map.put(item, field, value) end)
-        %{day | items: items}
-      end)
+  def handle_event(
+        "save_sub_item",
+        %{"item-id" => item_id_str, "sub-idx" => si, "value" => value},
+        socket
+      ) do
+    item_id = String.to_integer(item_id_str)
+    sub_idx = String.to_integer(si)
+    item = Itineraries.get_item!(item_id)
+    new_subs = List.replace_at(item.sub_items, sub_idx, value)
+    {:ok, _} = Itineraries.update_sub_items(item, new_subs)
+    {:noreply, reload_itinerary(socket)}
+  end
 
-    %{itinerary | days: days}
+  def handle_event("add_sub_item", %{"item-id" => item_id_str}, socket) do
+    {:noreply, assign(socket, :editing, {:new_sub_item, String.to_integer(item_id_str)})}
+  end
+
+  def handle_event("save_new_sub_item", %{"item-id" => item_id_str, "value" => value}, socket) do
+    item_id = String.to_integer(item_id_str)
+
+    if String.trim(value) == "" do
+      {:noreply, assign(socket, :editing, nil)}
+    else
+      item = Itineraries.get_item!(item_id)
+      {:ok, _} = Itineraries.update_sub_items(item, item.sub_items ++ [String.trim(value)])
+      {:noreply, reload_itinerary(socket)}
+    end
+  end
+
+  def handle_event("delete_sub_item", %{"item-id" => item_id_str, "sub-idx" => si}, socket) do
+    item_id = String.to_integer(item_id_str)
+    sub_idx = String.to_integer(si)
+    item = Itineraries.get_item!(item_id)
+    new_subs = List.delete_at(item.sub_items, sub_idx)
+    {:ok, _} = Itineraries.update_sub_items(item, new_subs)
+    {:noreply, reload_itinerary(socket)}
+  end
+
+  defp parse_and_save(markdown, socket) do
+    case MarkdownParser.parse(markdown) do
+      {:ok, parsed} ->
+        case Itineraries.create_itinerary(parsed) do
+          {:ok, id} ->
+            {:noreply, push_navigate(socket, to: "/itineraries/#{id}")}
+
+          {:error, _} ->
+            {:noreply, assign(socket, :parse_error, "儲存失敗")}
+        end
+
+      {:error, reason} ->
+        {:noreply, assign(socket, :parse_error, reason)}
+    end
+  end
+
+  defp reload_itinerary(socket) do
+    itinerary = Itineraries.get_itinerary!(socket.assigns.itinerary.id)
+
+    socket
+    |> assign(:itinerary, itinerary)
+    |> assign(:editing, nil)
   end
 
   defp parse_time_input(time_str) do
@@ -293,43 +210,10 @@ defmodule JacalendarWeb.ScheduleLive do
     end
   end
 
-  defp update_item_time(itinerary, day_idx, item_idx, time) do
-    days =
-      itinerary.days
-      |> Enum.with_index()
-      |> Enum.map(fn {day, di} ->
-        if di == day_idx do
-          items =
-            day.items
-            |> Enum.with_index()
-            |> Enum.map(fn {item, ii} ->
-              if ii == item_idx do
-                %{item | time: {:exact, time}}
-              else
-                item
-              end
-            end)
-            |> Enum.sort_by(fn item ->
-              case item.time do
-                {:exact, t} -> {0, Time.to_erl(t)}
-                {:fuzzy, :morning} -> {1, {6, 0, 0}}
-                {:fuzzy, :afternoon} -> {1, {12, 0, 0}}
-                {:fuzzy, :evening} -> {1, {18, 0, 0}}
-                :pending -> {2, {23, 59, 0}}
-              end
-            end)
-
-          %{day | items: items}
-        else
-          day
-        end
-      end)
-
-    %{itinerary | days: days}
-  end
-
   defp time_display(item) do
-    case item.time do
+    time = Itineraries.deserialize_time(item.time_type, item.time_value)
+
+    case time do
       {:exact, t} -> Calendar.strftime(t, "%H:%M")
       {:fuzzy, period} -> Map.get(@fuzzy_labels, period, "")
       :pending -> nil
@@ -337,14 +221,13 @@ defmodule JacalendarWeb.ScheduleLive do
   end
 
   defp editable?(item) do
-    case item.time do
-      {:exact, _} -> false
-      _ -> true
-    end
+    item.time_type != "exact"
   end
 
   defp item_before_time?(item, current_time) do
-    case item.time do
+    time = Itineraries.deserialize_time(item.time_type, item.time_value)
+
+    case time do
       {:exact, t} -> Time.compare(t, current_time) == :lt
       {:fuzzy, :morning} -> Time.compare(current_time, ~T[12:00:00]) != :lt
       {:fuzzy, :afternoon} -> Time.compare(current_time, ~T[18:00:00]) != :lt
@@ -370,6 +253,30 @@ defmodule JacalendarWeb.ScheduleLive do
               <p class="text-base-content/60">
                 貼上你的旅行行程 Markdown，即時轉換為互動式行程表
               </p>
+            </div>
+
+            <%!-- Saved itineraries list --%>
+            <div :if={@itineraries != []} id="itinerary-list" class="space-y-2">
+              <h2 class="text-lg font-semibold">已儲存的行程</h2>
+              <div :for={it <- @itineraries} class="card card-compact bg-base-200 shadow-sm">
+                <div class="card-body flex-row items-center justify-between">
+                  <.link navigate={"/itineraries/#{it.id}"} class="flex-1 hover:text-primary">
+                    <p class="font-medium">{it.title}</p>
+                    <p :if={it.date_range_start} class="text-xs text-base-content/60">
+                      {it.date_range_start} ~ {it.date_range_end}
+                    </p>
+                  </.link>
+                  <button
+                    phx-click="delete_itinerary"
+                    phx-value-id={it.id}
+                    class="btn btn-ghost btn-xs text-error"
+                  >
+                    <.icon name="hero-trash" class="size-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div class="divider text-base-content/40 text-xs">或新增行程</div>
             </div>
 
             <%!-- File upload --%>
@@ -458,58 +365,70 @@ defmodule JacalendarWeb.ScheduleLive do
             <div class="flex items-center justify-between">
               <div>
                 <h1 class="text-2xl font-bold tracking-tight">{@itinerary.title}</h1>
-                <p :if={@itinerary.date_range} class="text-base-content/60 text-sm mt-1">
-                  {elem(@itinerary.date_range, 0)} ~ {elem(@itinerary.date_range, 1)}
+                <p :if={@itinerary.date_range_start} class="text-base-content/60 text-sm mt-1">
+                  {@itinerary.date_range_start} ~ {@itinerary.date_range_end}
                 </p>
               </div>
-              <button phx-click="back_to_input" class="btn btn-ghost btn-sm">
-                <.icon name="hero-arrow-left" class="size-4" /> 重新輸入
-              </button>
+              <div class="flex gap-2">
+                <button
+                  phx-click="delete_itinerary"
+                  phx-value-id={@itinerary.id}
+                  class="btn btn-ghost btn-sm text-error"
+                >
+                  <.icon name="hero-trash" class="size-4" />
+                </button>
+                <.link navigate="/" class="btn btn-ghost btn-sm">
+                  <.icon name="hero-arrow-left" class="size-4" /> 返回列表
+                </.link>
+              </div>
             </div>
 
             <%!-- Metadata --%>
+            <% meta = @itinerary.metadata || %{} %>
+            <% flights = meta["flights"] || [] %>
+            <% hotel = meta["hotel"] %>
             <div
-              :if={@itinerary.metadata}
+              :if={flights != [] || hotel}
               id="metadata-section"
               class="grid grid-cols-1 sm:grid-cols-2 gap-3"
             >
               <div
-                :if={@itinerary.metadata.flights != []}
+                :if={flights != []}
                 class="card card-compact bg-base-200 shadow-sm"
               >
                 <div class="card-body">
                   <h3 class="card-title text-sm">
                     <.icon name="hero-paper-airplane" class="size-4" /> 航班
                   </h3>
-                  <div :for={flight <- @itinerary.metadata.flights} class="text-sm">
+                  <div :for={flight <- flights} class="text-sm">
                     <span class="font-medium">
-                      {if flight.direction == :outbound, do: "去程", else: "回程"}
+                      {if flight["direction"] == "outbound", do: "去程", else: "回程"}
                     </span>
                     <span class="text-base-content/70">
-                      {flight.flight_number} · {flight.date}
+                      {flight["flight_number"]} · {flight["date"]}
                     </span>
                   </div>
                 </div>
               </div>
 
               <div
-                :if={@itinerary.metadata.hotel && @itinerary.metadata.hotel.name}
+                :if={hotel && hotel["name"]}
                 class="card card-compact bg-base-200 shadow-sm"
               >
                 <div class="card-body">
                   <h3 class="card-title text-sm">
                     <.icon name="hero-building-office" class="size-4" /> 住宿
                   </h3>
-                  <p class="text-sm font-medium">{@itinerary.metadata.hotel.name}</p>
-                  <p :if={@itinerary.metadata.hotel.address} class="text-xs text-base-content/60">
-                    {@itinerary.metadata.hotel.address}
+                  <p class="text-sm font-medium">{hotel["name"]}</p>
+                  <p :if={hotel["address"]} class="text-xs text-base-content/60">
+                    {hotel["address"]}
                   </p>
                 </div>
               </div>
             </div>
 
             <%!-- Days --%>
-            <div :for={{day, day_idx} <- Enum.with_index(@itinerary.days)} class="space-y-2">
+            <div :for={day <- @itinerary.days} class="space-y-2">
               <div class={[
                 "flex items-baseline gap-3 py-2 border-b-2",
                 if(@current_date && day.date == @current_date,
@@ -522,13 +441,12 @@ defmodule JacalendarWeb.ScheduleLive do
                 <span class="text-base-content/70">{day.title}</span>
               </div>
 
-              <div id={"day-#{day_idx}"} class="space-y-1">
+              <div id={"day-#{day.id}"} class="space-y-1">
                 <%= for {item, item_idx} <- Enum.with_index(day.items) do %>
-                  <% item_id = "#{day_idx}-#{item_idx}" %>
                   <% next_item = Enum.at(day.items, item_idx + 1) %>
 
                   <div
-                    id={"item-#{item_id}"}
+                    id={"item-#{item.id}"}
                     class={[
                       "flex gap-3 py-2 px-3 rounded-lg transition-colors",
                       if(
@@ -541,19 +459,18 @@ defmodule JacalendarWeb.ScheduleLive do
                   >
                     <%!-- Time column --%>
                     <div class="w-16 shrink-0 text-right">
-                      <%= if @editing == {:time, day_idx, item_idx} do %>
+                      <%= if @editing == {:time, item.id} do %>
                         <.form
                           for={%{}}
-                          id={"time-form-#{item_id}"}
+                          id={"time-form-#{item.id}"}
                           phx-submit="save_time"
                           class="flex"
                         >
-                          <input type="hidden" name="day-idx" value={day_idx} />
-                          <input type="hidden" name="item-idx" value={item_idx} />
+                          <input type="hidden" name="item-id" value={item.id} />
                           <input
                             type="time"
                             name="time"
-                            id={"time-input-#{item_id}"}
+                            id={"time-input-#{item.id}"}
                             class="input input-xs input-bordered w-full"
                             required
                           />
@@ -566,8 +483,7 @@ defmodule JacalendarWeb.ScheduleLive do
                               if(editable?(item), do: "cursor-pointer hover:text-primary", else: "")
                             ]}
                             phx-click={if(editable?(item), do: "edit_time")}
-                            phx-value-day-idx={day_idx}
-                            phx-value-item-idx={item_idx}
+                            phx-value-item-id={item.id}
                           >
                             {time_display(item)}
                           </span>
@@ -575,8 +491,7 @@ defmodule JacalendarWeb.ScheduleLive do
                           <button
                             class="badge badge-warning badge-sm cursor-pointer hover:badge-primary"
                             phx-click="edit_time"
-                            phx-value-day-idx={day_idx}
-                            phx-value-item-idx={item_idx}
+                            phx-value-item-id={item.id}
                           >
                             待定
                           </button>
@@ -586,21 +501,20 @@ defmodule JacalendarWeb.ScheduleLive do
 
                     <%!-- Content column --%>
                     <div class="flex-1 min-w-0">
-                      <%= if @editing == {:description, day_idx, item_idx} do %>
+                      <%= if @editing == {:description, item.id} do %>
                         <.form
                           for={%{}}
                           phx-submit="save_description"
-                          id={"desc-form-#{item_id}"}
+                          id={"desc-form-#{item.id}"}
                         >
-                          <input type="hidden" name="day-idx" value={day_idx} />
-                          <input type="hidden" name="item-idx" value={item_idx} />
+                          <input type="hidden" name="item-id" value={item.id} />
                           <input
                             type="text"
                             name="value"
                             value={item.description}
-                            id={"desc-input-#{item_id}"}
+                            id={"desc-input-#{item.id}"}
                             class="input input-xs input-bordered w-full text-sm"
-                            phx-blur={JS.dispatch("submit", to: "#desc-form-#{item_id}")}
+                            phx-blur={JS.dispatch("submit", to: "#desc-form-#{item.id}")}
                             phx-keydown="cancel_edit"
                             phx-key="Escape"
                             autofocus
@@ -610,8 +524,7 @@ defmodule JacalendarWeb.ScheduleLive do
                         <p
                           class="text-sm cursor-pointer hover:text-primary"
                           phx-click="edit_description"
-                          phx-value-day-idx={day_idx}
-                          phx-value-item-idx={item_idx}
+                          phx-value-item-id={item.id}
                         >
                           {item.description}
                         </p>
@@ -619,24 +532,23 @@ defmodule JacalendarWeb.ScheduleLive do
                       <div :if={item.sub_items != []} class="mt-1 space-y-0.5">
                         <%= for {sub, sub_idx} <- Enum.with_index(item.sub_items) do %>
                           <div class="flex items-center gap-1 group">
-                            <%= if @editing == {:sub_item, day_idx, item_idx, sub_idx} do %>
+                            <%= if @editing == {:sub_item, item.id, sub_idx} do %>
                               <.form
                                 for={%{}}
                                 phx-submit="save_sub_item"
-                                id={"sub-form-#{item_id}-#{sub_idx}"}
+                                id={"sub-form-#{item.id}-#{sub_idx}"}
                                 class="flex-1"
                               >
-                                <input type="hidden" name="day-idx" value={day_idx} />
-                                <input type="hidden" name="item-idx" value={item_idx} />
+                                <input type="hidden" name="item-id" value={item.id} />
                                 <input type="hidden" name="sub-idx" value={sub_idx} />
                                 <input
                                   type="text"
                                   name="value"
                                   value={sub}
-                                  id={"sub-input-#{item_id}-#{sub_idx}"}
+                                  id={"sub-input-#{item.id}-#{sub_idx}"}
                                   class="input input-xs input-bordered w-full text-xs"
                                   phx-blur={
-                                    JS.dispatch("submit", to: "#sub-form-#{item_id}-#{sub_idx}")
+                                    JS.dispatch("submit", to: "#sub-form-#{item.id}-#{sub_idx}")
                                   }
                                   phx-keydown="cancel_edit"
                                   phx-key="Escape"
@@ -647,8 +559,7 @@ defmodule JacalendarWeb.ScheduleLive do
                               <p
                                 class="text-xs text-base-content/60 pl-3 border-l-2 border-base-300 flex-1 cursor-pointer hover:text-primary"
                                 phx-click="edit_sub_item"
-                                phx-value-day-idx={day_idx}
-                                phx-value-item-idx={item_idx}
+                                phx-value-item-id={item.id}
                                 phx-value-sub-idx={sub_idx}
                               >
                                 {sub}
@@ -656,8 +567,7 @@ defmodule JacalendarWeb.ScheduleLive do
                               <button
                                 class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100 text-error"
                                 phx-click="delete_sub_item"
-                                phx-value-day-idx={day_idx}
-                                phx-value-item-idx={item_idx}
+                                phx-value-item-id={item.id}
                                 phx-value-sub-idx={sub_idx}
                               >
                                 <.icon name="hero-x-mark" class="size-3" />
@@ -666,19 +576,18 @@ defmodule JacalendarWeb.ScheduleLive do
                           </div>
                         <% end %>
                       </div>
-                      <%= if @editing == {:new_sub_item, day_idx, item_idx} do %>
+                      <%= if @editing == {:new_sub_item, item.id} do %>
                         <.form
                           for={%{}}
                           phx-submit="save_new_sub_item"
-                          id={"new-sub-form-#{item_id}"}
+                          id={"new-sub-form-#{item.id}"}
                           class="mt-1"
                         >
-                          <input type="hidden" name="day-idx" value={day_idx} />
-                          <input type="hidden" name="item-idx" value={item_idx} />
+                          <input type="hidden" name="item-id" value={item.id} />
                           <input
                             type="text"
                             name="value"
-                            id={"new-sub-input-#{item_id}"}
+                            id={"new-sub-input-#{item.id}"}
                             class="input input-xs input-bordered w-full text-xs"
                             placeholder="輸入子項目內容..."
                             phx-keydown="cancel_edit"
@@ -690,8 +599,7 @@ defmodule JacalendarWeb.ScheduleLive do
                         <button
                           class="btn btn-ghost btn-xs text-base-content/40 hover:text-primary mt-1"
                           phx-click="add_sub_item"
-                          phx-value-day-idx={day_idx}
-                          phx-value-item-idx={item_idx}
+                          phx-value-item-id={item.id}
                         >
                           <.icon name="hero-plus" class="size-3" /> 子項目
                         </button>
