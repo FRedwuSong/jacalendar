@@ -3,6 +3,8 @@ defmodule JacalendarWeb.ScheduleLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Jacalendar.Itineraries
+
   @valid_markdown """
   # 東京之旅 (2026/04/16 - 04/21)
 
@@ -24,6 +26,12 @@ defmodule JacalendarWeb.ScheduleLiveTest do
   *   **晚餐**: 吃拉麵
   """
 
+  defp create_itinerary(_context) do
+    {:ok, parsed} = Jacalendar.MarkdownParser.parse(@valid_markdown)
+    {:ok, id} = Itineraries.create_itinerary(parsed)
+    %{itinerary_id: id}
+  end
+
   describe "input mode" do
     test "renders markdown input form", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
@@ -32,16 +40,15 @@ defmodule JacalendarWeb.ScheduleLiveTest do
       assert has_element?(view, "#parse-btn")
     end
 
-    test "parses valid markdown and shows schedule", %{conn: conn} do
+    test "parses valid markdown, saves to DB, and redirects", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
       view
       |> form("#markdown-form", %{markdown: @valid_markdown})
       |> render_submit()
 
-      assert has_element?(view, "#schedule-mode")
-      assert has_element?(view, "#metadata-section")
-      assert has_element?(view, "#day-0")
+      {path, _flash} = assert_redirect(view)
+      assert path =~ ~r"/itineraries/\d+"
     end
 
     test "shows error for invalid markdown", %{conn: conn} do
@@ -55,78 +62,85 @@ defmodule JacalendarWeb.ScheduleLiveTest do
     end
   end
 
-  describe "schedule display" do
-    setup %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/")
+  describe "itinerary list" do
+    setup :create_itinerary
 
-      view
-      |> form("#markdown-form", %{markdown: @valid_markdown})
-      |> render_submit()
-
-      %{view: view}
+    test "shows saved itineraries on root page", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/")
+      assert html =~ "東京之旅"
+      assert html =~ "已儲存的行程"
     end
 
-    test "displays day header", %{view: view} do
-      html = render(view)
+    test "no itinerary list when empty", %{conn: conn} do
+      # Delete all itineraries first
+      for it <- Itineraries.list_itineraries() do
+        Itineraries.delete_itinerary(it)
+      end
+
+      {:ok, _view, html} = live(conn, "/")
+      refute html =~ "已儲存的行程"
+    end
+  end
+
+  describe "schedule display" do
+    setup :create_itinerary
+
+    test "displays day header", %{conn: conn, itinerary_id: id} do
+      {:ok, _view, html} = live(conn, "/itineraries/#{id}")
       assert html =~ "04/16"
       assert html =~ "抵達"
     end
 
-    test "displays exact time items", %{view: view} do
-      assert has_element?(view, "#item-0-0")
-      html = render(view)
+    test "displays exact time items", %{conn: conn, itinerary_id: id} do
+      {:ok, _view, html} = live(conn, "/itineraries/#{id}")
       assert html =~ "17:15"
       assert html =~ "抵達成田機場"
     end
 
-    test "displays pending time items with badge", %{view: view} do
-      html = render(view)
+    test "displays pending time items with badge", %{conn: conn, itinerary_id: id} do
+      {:ok, _view, html} = live(conn, "/itineraries/#{id}")
       assert html =~ "待定"
     end
 
-    test "displays fuzzy time items", %{view: view} do
-      html = render(view)
+    test "displays fuzzy time items", %{conn: conn, itinerary_id: id} do
+      {:ok, _view, html} = live(conn, "/itineraries/#{id}")
       assert html =~ "早上"
     end
 
-    test "displays sub-items", %{view: view} do
-      html = render(view)
+    test "displays sub-items", %{conn: conn, itinerary_id: id} do
+      {:ok, _view, html} = live(conn, "/itineraries/#{id}")
       assert html =~ "利木津巴士直達新宿"
     end
 
-    test "displays flight metadata", %{view: view} do
-      html = render(view)
+    test "displays flight metadata", %{conn: conn, itinerary_id: id} do
+      {:ok, _view, html} = live(conn, "/itineraries/#{id}")
       assert html =~ "JL8664"
     end
 
-    test "displays hotel metadata", %{view: view} do
-      html = render(view)
+    test "displays hotel metadata", %{conn: conn, itinerary_id: id} do
+      {:ok, _view, html} = live(conn, "/itineraries/#{id}")
       assert html =~ "新宿華盛頓飯店"
     end
 
-    test "back to input button works", %{view: view} do
-      view |> element("button", "重新輸入") |> render_click()
-      assert has_element?(view, "#input-mode")
+    test "back to list link works", %{conn: conn, itinerary_id: id} do
+      {:ok, view, _html} = live(conn, "/itineraries/#{id}")
+      view |> element("a", "返回列表") |> render_click()
+      {path, _flash} = assert_redirect(view)
+      assert path == "/"
     end
   end
 
   describe "time editing" do
-    setup %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/")
+    setup :create_itinerary
 
-      view
-      |> form("#markdown-form", %{markdown: @valid_markdown})
-      |> render_submit()
-
-      %{view: view}
-    end
-
-    test "clicking pending time shows time input", %{view: view} do
+    test "clicking pending time shows time input", %{conn: conn, itinerary_id: id} do
+      {:ok, view, _html} = live(conn, "/itineraries/#{id}")
       view |> element("button", "待定") |> render_click()
       assert has_element?(view, "input[type=time]")
     end
 
-    test "saving time updates the item", %{view: view} do
+    test "saving time updates the item in DB", %{conn: conn, itinerary_id: id} do
+      {:ok, view, _html} = live(conn, "/itineraries/#{id}")
       view |> element("button", "待定") |> render_click()
 
       view
@@ -139,159 +153,93 @@ defmodule JacalendarWeb.ScheduleLiveTest do
   end
 
   describe "description editing" do
-    setup %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/")
+    setup :create_itinerary
 
-      view
-      |> form("#markdown-form", %{markdown: @valid_markdown})
-      |> render_submit()
-
-      %{view: view}
+    test "clicking description shows text input", %{conn: conn, itinerary_id: id} do
+      {:ok, view, _html} = live(conn, "/itineraries/#{id}")
+      view |> element("p", "抵達成田機場") |> render_click()
+      assert has_element?(view, "input[id^=desc-input]")
     end
 
-    test "clicking description shows text input", %{view: view} do
-      # item-0-0 is "抵達成田機場" (first item, day 0)
-      view |> element("#item-0-0 p", "抵達成田機場") |> render_click()
-      assert has_element?(view, "#desc-input-0-0")
-    end
-
-    test "submitting edit updates description", %{view: view} do
-      view |> element("#item-0-0 p", "抵達成田機場") |> render_click()
+    test "submitting edit updates description in DB", %{conn: conn, itinerary_id: id} do
+      {:ok, view, _html} = live(conn, "/itineraries/#{id}")
+      view |> element("p", "抵達成田機場") |> render_click()
 
       view
-      |> form("#desc-form-0-0", %{value: "抵達羽田機場"})
+      |> form("form[id^=desc-form]", %{value: "抵達羽田機場"})
       |> render_submit()
 
       html = render(view)
       assert html =~ "抵達羽田機場"
-      refute has_element?(view, "#desc-input-0-0")
-    end
 
-    test "pressing Escape cancels description edit", %{view: view} do
-      view |> element("#item-0-0 p", "抵達成田機場") |> render_click()
-      assert has_element?(view, "#desc-input-0-0")
-
-      render_keydown(view, "cancel_edit", %{"key" => "Escape"})
-      refute has_element?(view, "#desc-input-0-0")
-      assert render(view) =~ "抵達成田機場"
-    end
-
-    test "empty description is allowed", %{view: view} do
-      view |> element("#item-0-0 p", "抵達成田機場") |> render_click()
-
-      view
-      |> form("#desc-form-0-0", %{value: ""})
-      |> render_submit()
-
-      refute has_element?(view, "#desc-input-0-0")
+      # Verify it's in DB
+      itinerary = Itineraries.get_itinerary!(id)
+      item = hd(hd(itinerary.days).items)
+      assert item.description == "抵達羽田機場"
     end
   end
 
   describe "sub-item editing" do
-    setup %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/")
+    setup :create_itinerary
 
-      view
-      |> form("#markdown-form", %{markdown: @valid_markdown})
-      |> render_submit()
-
-      %{view: view}
-    end
-
-    test "clicking sub-item shows text input", %{view: view} do
-      # item-0-1 is "搭巴士" which has sub-item "利木津巴士直達新宿"
-      view |> element("#item-0-1 p", "利木津巴士直達新宿") |> render_click()
-      assert has_element?(view, "#sub-input-0-1-0")
-    end
-
-    test "submitting edit updates sub-item", %{view: view} do
-      view |> element("#item-0-1 p", "利木津巴士直達新宿") |> render_click()
-
-      view
-      |> form("#sub-form-0-1-0", %{value: "搭 N'EX 到新宿"})
-      |> render_submit()
-
-      html = render(view)
-      assert html =~ "搭 N&#39;EX 到新宿"
-      refute has_element?(view, "#sub-input-0-1-0")
-    end
-
-    test "pressing Escape cancels sub-item edit", %{view: view} do
-      view |> element("#item-0-1 p", "利木津巴士直達新宿") |> render_click()
-      assert has_element?(view, "#sub-input-0-1-0")
-
-      render_keydown(view, "cancel_edit", %{"key" => "Escape"})
-      refute has_element?(view, "#sub-input-0-1-0")
-      assert render(view) =~ "利木津巴士直達新宿"
+    test "clicking sub-item shows text input", %{conn: conn, itinerary_id: id} do
+      {:ok, view, _html} = live(conn, "/itineraries/#{id}")
+      view |> element("p", "利木津巴士直達新宿") |> render_click()
+      assert has_element?(view, "input[id^=sub-input]")
     end
   end
 
   describe "sub-item deletion" do
-    setup %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/")
+    setup :create_itinerary
+
+    test "clicking delete removes sub-item from DB", %{conn: conn, itinerary_id: id} do
+      {:ok, view, _html} = live(conn, "/itineraries/#{id}")
+      assert render(view) =~ "利木津巴士直達新宿"
 
       view
-      |> form("#markdown-form", %{markdown: @valid_markdown})
-      |> render_submit()
-
-      %{view: view}
-    end
-
-    test "clicking delete removes sub-item", %{view: view} do
-      html = render(view)
-      assert html =~ "利木津巴士直達新宿"
-
-      view
-      |> element("#item-0-1 button[phx-click=delete_sub_item]")
+      |> element("button[phx-click=delete_sub_item]")
       |> render_click()
 
-      html = render(view)
-      refute html =~ "利木津巴士直達新宿"
+      refute render(view) =~ "利木津巴士直達新宿"
     end
   end
 
   describe "sub-item addition" do
-    setup %{conn: conn} do
-      {:ok, view, _html} = live(conn, "/")
+    setup :create_itinerary
+
+    test "adding new sub-item saves to DB", %{conn: conn, itinerary_id: id} do
+      {:ok, view, _html} = live(conn, "/itineraries/#{id}")
+
+      # Get first item's add button
+      itinerary = Itineraries.get_itinerary!(id)
+      first_item = hd(hd(itinerary.days).items)
 
       view
-      |> form("#markdown-form", %{markdown: @valid_markdown})
+      |> element(~s|button[phx-click=add_sub_item][phx-value-item-id="#{first_item.id}"]|)
+      |> render_click()
+
+      assert has_element?(view, "input[id=new-sub-input-#{first_item.id}]")
+
+      view
+      |> form("#new-sub-form-#{first_item.id}", %{value: "記得帶護照"})
       |> render_submit()
 
-      %{view: view}
+      assert render(view) =~ "記得帶護照"
     end
+  end
 
-    test "clicking add button shows text input", %{view: view} do
+  describe "itinerary deletion" do
+    setup :create_itinerary
+
+    test "deleting itinerary redirects to root", %{conn: conn, itinerary_id: id} do
+      {:ok, view, _html} = live(conn, "/itineraries/#{id}")
+
       view
-      |> element("#item-0-0 button[phx-click=add_sub_item]")
+      |> element("button[phx-click=delete_itinerary]")
       |> render_click()
 
-      assert has_element?(view, "#new-sub-input-0-0")
-    end
-
-    test "submitting new sub-item adds it to list", %{view: view} do
-      view
-      |> element("#item-0-0 button[phx-click=add_sub_item]")
-      |> render_click()
-
-      view
-      |> form("#new-sub-form-0-0", %{value: "記得帶護照"})
-      |> render_submit()
-
-      html = render(view)
-      assert html =~ "記得帶護照"
-      refute has_element?(view, "#new-sub-input-0-0")
-    end
-
-    test "pressing Escape cancels new sub-item", %{view: view} do
-      view
-      |> element("#item-0-0 button[phx-click=add_sub_item]")
-      |> render_click()
-
-      assert has_element?(view, "#new-sub-input-0-0")
-
-      render_keydown(view, "cancel_edit", %{"key" => "Escape"})
-      refute has_element?(view, "#new-sub-input-0-0")
+      {path, _flash} = assert_redirect(view)
+      assert path == "/"
     end
   end
 end

@@ -18,6 +18,7 @@ defmodule JacalendarWeb.Router do
     pipe_through :browser
 
     live "/", ScheduleLive
+    live "/itineraries/:id", ScheduleLive
   end
 
   # Other scopes may use custom stacks.
