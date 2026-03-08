@@ -117,6 +117,7 @@ defmodule Jacalendar.Itineraries do
           base
           |> maybe_put("departure", serialize_airport(Map.get(f, :departure)))
           |> maybe_put("arrival", serialize_airport(Map.get(f, :arrival)))
+          |> maybe_put("terminal", Map.get(f, :terminal))
         end),
       "hotel" =>
         if metadata.hotel do

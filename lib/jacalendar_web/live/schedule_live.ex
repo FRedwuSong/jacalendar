@@ -269,6 +269,8 @@ defmodule JacalendarWeb.ScheduleLive do
         dep = flight["departure"]
         arr = flight["arrival"]
         flight_num = flight["flight_number"] || ""
+        terminal = flight["terminal"]
+        terminal_suffix = if terminal, do: " · #{terminal}", else: ""
 
         events =
           if dep && dep["time"] && arr && arr["time"] do
@@ -281,9 +283,9 @@ defmodule JacalendarWeb.ScheduleLive do
 
             [
               %{type: :flight, time_value: checkin_time, end_time: dep_time,
-                label: "抵達 #{dep["code"]} #{dep["name"]}機場"},
+                label: "抵達 #{dep["code"]} #{dep["name"]}機場#{terminal_suffix}"},
               %{type: :flight, time_value: dep_time, end_time: arr_time,
-                label: "#{flight_num} #{dep["code"]} #{dep["name"]} → #{arr["code"]} #{arr["name"]}"}
+                label: "#{flight_num} #{dep["code"]} #{dep["name"]} → #{arr["code"]} #{arr["name"]}#{terminal_suffix}"}
             ]
           else
             []
@@ -525,6 +527,9 @@ defmodule JacalendarWeb.ScheduleLive do
                       <% dep = flight["departure"] %>
                       <% arr = flight["arrival"] %>
                       {dep["code"]} {dep["name"]} {dep["time"]} → {arr["code"]} {arr["name"]} {arr["time"]}
+                      <div :if={flight["terminal"]} class="text-base-content/40">
+                        {flight["terminal"]}
+                      </div>
                     </div>
                   </div>
                 </div>

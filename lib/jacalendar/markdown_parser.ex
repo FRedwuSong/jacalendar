@@ -142,12 +142,20 @@ defmodule Jacalendar.MarkdownParser do
     # Parse route details like "TPE 桃園 12:45 -> NRT 成田 17:15"
     {departure, arrival} = parse_flight_route(details)
 
+    # Parse terminal info like "第二航廈"
+    terminal =
+      case Regex.run(~r/(第[一二三]航廈|Terminal\s*\d)/u, details) do
+        [_, t] -> t
+        _ -> nil
+      end
+
     %{
       direction: direction,
       flight_number: flight_number,
       date: date,
       departure: departure,
-      arrival: arrival
+      arrival: arrival,
+      terminal: terminal
     }
   end
 
