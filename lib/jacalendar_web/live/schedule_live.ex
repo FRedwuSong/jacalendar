@@ -435,13 +435,23 @@ defmodule JacalendarWeb.ScheduleLive do
                   <h3 class="card-title text-sm">
                     <.icon name="hero-paper-airplane" class="size-4" /> 航班
                   </h3>
-                  <div :for={flight <- flights} class="text-sm">
-                    <span class="font-medium">
-                      {if flight["direction"] == "outbound", do: "去程", else: "回程"}
-                    </span>
-                    <span class="text-base-content/70">
-                      {flight["flight_number"]} · {flight["date"]}
-                    </span>
+                  <div :for={flight <- flights} class="text-sm space-y-0.5">
+                    <div>
+                      <span class="font-medium">
+                        {if flight["direction"] == "outbound", do: "去程", else: "回程"}
+                      </span>
+                      <span class="text-base-content/70">
+                        {flight["flight_number"]} · {flight["date"]}
+                      </span>
+                    </div>
+                    <div
+                      :if={flight["departure"] && flight["arrival"]}
+                      class="text-xs text-base-content/60 font-mono pl-2"
+                    >
+                      <% dep = flight["departure"] %>
+                      <% arr = flight["arrival"] %>
+                      {dep["code"]} {dep["name"]} {dep["time"]} → {arr["code"]} {arr["name"]} {arr["time"]}
+                    </div>
                   </div>
                 </div>
               </div>
