@@ -96,17 +96,27 @@ defmodule Jacalendar.Itineraries do
   def deserialize_time("fuzzy_evening", _), do: {:fuzzy, :evening}
   def deserialize_time("pending", _), do: :pending
 
+  defp serialize_airport(nil), do: nil
+  defp serialize_airport(a), do: %{"code" => a.code, "name" => a.name, "time" => a.time}
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
   defp serialize_metadata(nil), do: %{}
 
   defp serialize_metadata(metadata) do
     %{
       "flights" =>
         Enum.map(metadata.flights || [], fn f ->
-          %{
+          base = %{
             "direction" => to_string(f.direction),
             "flight_number" => f.flight_number,
             "date" => f.date
           }
+
+          base
+          |> maybe_put("departure", serialize_airport(Map.get(f, :departure)))
+          |> maybe_put("arrival", serialize_airport(Map.get(f, :arrival)))
         end),
       "hotel" =>
         if metadata.hotel do
