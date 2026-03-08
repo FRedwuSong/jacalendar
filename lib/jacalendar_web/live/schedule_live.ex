@@ -250,6 +250,31 @@ defmodule JacalendarWeb.ScheduleLive do
       (next_item == nil or not item_before_time?(next_item, current_time))
   end
 
+  defp split_items_by_schedule(items) do
+    {scheduled, unscheduled} = Enum.split_with(items, &(&1.time_type == "exact"))
+    {Enum.sort_by(scheduled, & &1.time_value), unscheduled}
+  end
+
+  defp timeline_range([]), do: {0, 23}
+
+  defp timeline_range(scheduled_items) do
+    times = Enum.map(scheduled_items, & &1.time_value)
+    min_h = times |> Enum.map(& &1.hour) |> Enum.min() |> then(&max(&1 - 1, 0))
+    max_h = times |> Enum.map(& &1.hour) |> Enum.max() |> then(&min(&1 + 2, 24))
+    {min_h, max_h}
+  end
+
+  defp item_grid_row(item, start_hour) do
+    h = item.time_value.hour
+    m = item.time_value.minute
+    row = (h - start_hour) * 2 + if(m >= 30, do: 2, else: 1)
+    row
+  end
+
+  defp format_hour(h) when h < 12, do: "#{String.pad_leading(to_string(h), 2, "0")}:00"
+  defp format_hour(12), do: "12:00"
+  defp format_hour(h), do: "#{String.pad_leading(to_string(h), 2, "0")}:00"
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -473,8 +498,117 @@ defmodule JacalendarWeb.ScheduleLive do
             </div>
 
             <%!-- Days --%>
-            <% filtered_days = if @selected_day, do: Enum.filter(@itinerary.days, & &1.id == @selected_day), else: @itinerary.days %>
-            <div :for={day <- filtered_days} class="space-y-2">
+            <%= if @selected_day do %>
+              <%!-- Single day: Timeline view --%>
+              <% [day] = Enum.filter(@itinerary.days, & &1.id == @selected_day) %>
+              <% {scheduled_items, unscheduled_items} = split_items_by_schedule(day.items) %>
+
+              <%!-- Day header --%>
+              <div class={[
+                "flex items-baseline gap-3 py-2 border-b-2",
+                if(@current_date && day.date == @current_date,
+                  do: "border-primary",
+                  else: "border-base-300"
+                )
+              ]}>
+                <span class="text-lg font-bold">{Calendar.strftime(day.date, "%m/%d")}</span>
+                <span class="badge badge-ghost badge-sm">{day.weekday}</span>
+                <span class="text-base-content/70">{day.title}</span>
+              </div>
+
+              <%!-- Unscheduled items section --%>
+              <div :if={unscheduled_items != []} class="card card-compact bg-base-200/50 shadow-sm">
+                <div class="card-body py-3">
+                  <h3 class="text-xs font-semibold text-base-content/50 uppercase tracking-wider">
+                    未排定項目
+                  </h3>
+                  <div class="space-y-1.5">
+                    <div :for={item <- unscheduled_items} id={"unscheduled-#{item.id}"} class="flex gap-2 items-start text-sm">
+                      <span class="w-12 shrink-0 text-right text-xs text-base-content/50 pt-0.5">
+                        <%= if @editing == {:time, item.id} do %>
+                          <.form for={%{}} id={"time-form-#{item.id}"} phx-submit="save_time" class="flex">
+                            <input type="hidden" name="item-id" value={item.id} />
+                            <input type="time" name="time" id={"time-input-#{item.id}"} class="input input-xs input-bordered w-full" required />
+                          </.form>
+                        <% else %>
+                          <%= if time_display(item) do %>
+                            <span class="cursor-pointer hover:text-primary" phx-click="edit_time" phx-value-item-id={item.id}>
+                              {time_display(item)}
+                            </span>
+                          <% else %>
+                            <button class="badge badge-warning badge-xs cursor-pointer hover:badge-primary" phx-click="edit_time" phx-value-item-id={item.id}>
+                              待定
+                            </button>
+                          <% end %>
+                        <% end %>
+                      </span>
+                      <div class="flex-1 min-w-0">
+                        <%= if @editing == {:description, item.id} do %>
+                          <.form for={%{}} phx-submit="save_description" id={"desc-form-#{item.id}"}>
+                            <input type="hidden" name="item-id" value={item.id} />
+                            <input type="text" name="value" value={item.description} id={"desc-input-#{item.id}"} class="input input-xs input-bordered w-full text-sm" phx-blur={JS.dispatch("submit", to: "#desc-form-#{item.id}")} phx-keydown="cancel_edit" phx-key="Escape" autofocus />
+                          </.form>
+                        <% else %>
+                          <span class="text-base-content/70 cursor-pointer hover:text-primary" phx-click="edit_description" phx-value-item-id={item.id}>
+                            {item.description}
+                          </span>
+                        <% end %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <%!-- Timeline grid --%>
+              <%= if scheduled_items != [] do %>
+                <% {start_hour, end_hour} = timeline_range(scheduled_items) %>
+                <% total_rows = (end_hour - start_hour) * 2 %>
+                <div
+                  class="grid relative"
+                  style={"grid-template-columns: 3.5rem 1fr; grid-template-rows: repeat(#{total_rows}, 1.75rem);"}
+                >
+                  <%!-- Hour labels and grid lines --%>
+                  <%= for h <- start_hour..(end_hour - 1) do %>
+                    <div
+                      class="text-xs text-base-content/40 font-mono text-right pr-3 leading-none"
+                      style={"grid-row: #{(h - start_hour) * 2 + 1}; grid-column: 1;"}
+                    >
+                      {format_hour(h)}
+                    </div>
+                    <div
+                      class="border-t border-base-300/50"
+                      style={"grid-row: #{(h - start_hour) * 2 + 1}; grid-column: 2;"}
+                    />
+                  <% end %>
+
+                  <%!-- Scheduled items --%>
+                  <%= for item <- scheduled_items do %>
+                    <div
+                      id={"timeline-item-#{item.id}"}
+                      class="rounded-lg bg-primary/10 border-l-3 border-primary px-3 py-1.5 text-sm hover:bg-primary/20 transition-colors"
+                      style={"grid-row: #{item_grid_row(item, start_hour)} / span 2; grid-column: 2;"}
+                    >
+                      <span class="font-mono text-xs text-primary font-semibold">
+                        {Calendar.strftime(item.time_value, "%H:%M")}
+                      </span>
+                      <%= if @editing == {:description, item.id} do %>
+                        <.form for={%{}} phx-submit="save_description" id={"desc-form-#{item.id}"} class="inline ml-2">
+                          <input type="hidden" name="item-id" value={item.id} />
+                          <input type="text" name="value" value={item.description} id={"desc-input-#{item.id}"} class="input input-xs input-bordered text-sm" phx-blur={JS.dispatch("submit", to: "#desc-form-#{item.id}")} phx-keydown="cancel_edit" phx-key="Escape" autofocus />
+                        </.form>
+                      <% else %>
+                        <span class="ml-2 cursor-pointer hover:text-primary" phx-click="edit_description" phx-value-item-id={item.id}>
+                          {item.description}
+                        </span>
+                      <% end %>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+            <% else %>
+              <%!-- All days: List view --%>
+              <% filtered_days = @itinerary.days %>
+              <div :for={day <- filtered_days} class="space-y-2">
               <div class={[
                 "flex items-baseline gap-3 py-2 border-b-2",
                 if(@current_date && day.date == @current_date,
@@ -673,6 +807,7 @@ defmodule JacalendarWeb.ScheduleLive do
                 <% end %>
               </div>
             </div>
+            <% end %>
           </div>
         <% end %>
       </div>
