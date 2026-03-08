@@ -188,7 +188,16 @@ defmodule Jacalendar.MarkdownParser do
         end
       end)
 
-    %{name: name, address: address}
+    phone =
+      hotel_section
+      |> Enum.find_value(fn line ->
+        case Regex.run(~r/\*\*TEL\*\*:\s*(.+)/, line) do
+          [_, p] -> String.trim(p)
+          _ -> nil
+        end
+      end)
+
+    %{name: name, address: address, phone: phone}
   end
 
   defp extract_section(lines, section_name) do

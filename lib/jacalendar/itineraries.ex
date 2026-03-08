@@ -121,6 +121,7 @@ defmodule Jacalendar.Itineraries do
       "hotel" =>
         if metadata.hotel do
           %{"name" => metadata.hotel.name, "address" => metadata.hotel.address}
+          |> maybe_put("phone", Map.get(metadata.hotel, :phone))
         end
     }
   end

@@ -493,6 +493,9 @@ defmodule JacalendarWeb.ScheduleLive do
                   <p :if={hotel["address"]} class="text-xs text-base-content/60">
                     {hotel["address"]}
                   </p>
+                  <p :if={hotel["phone"]} class="text-xs text-base-content/60">
+                    <.icon name="hero-phone" class="size-3 inline" /> {hotel["phone"]}
+                  </p>
                 </div>
               </div>
             </div>
