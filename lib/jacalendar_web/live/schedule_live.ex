@@ -517,7 +517,7 @@ defmodule JacalendarWeb.ScheduleLive do
               </div>
 
               <%!-- Unscheduled items section --%>
-              <div :if={unscheduled_items != []} class="card card-compact bg-base-200/50 shadow-sm">
+              <div :if={unscheduled_items != []} class="card card-compact bg-base-200/50 shadow-sm overflow-hidden">
                 <div class="card-body py-3">
                   <h3 class="text-xs font-semibold text-base-content/50 uppercase tracking-wider">
                     未排定項目
@@ -546,7 +546,7 @@ defmodule JacalendarWeb.ScheduleLive do
                         <%= if @editing == {:description, item.id} do %>
                           <.form for={%{}} phx-submit="save_description" id={"desc-form-#{item.id}"}>
                             <input type="hidden" name="item-id" value={item.id} />
-                            <input type="text" name="value" value={item.description} id={"desc-input-#{item.id}"} class="input input-xs input-bordered w-full text-sm" phx-blur={JS.dispatch("submit", to: "#desc-form-#{item.id}")} phx-keydown="cancel_edit" phx-key="Escape" autofocus />
+                            <textarea name="value" id={"desc-input-#{item.id}"} class="textarea textarea-bordered textarea-xs w-full text-sm leading-snug" rows="2" phx-blur={JS.dispatch("submit", to: "#desc-form-#{item.id}")} phx-keydown="cancel_edit" phx-key="Escape" autofocus>{item.description}</textarea>
                           </.form>
                         <% else %>
                           <span class="text-base-content/70 cursor-pointer hover:text-primary" phx-click="edit_description" phx-value-item-id={item.id}>
@@ -585,16 +585,22 @@ defmodule JacalendarWeb.ScheduleLive do
                   <%= for item <- scheduled_items do %>
                     <div
                       id={"timeline-item-#{item.id}"}
-                      class="rounded-lg bg-primary/10 border-l-3 border-primary px-3 py-1.5 text-sm hover:bg-primary/20 transition-colors"
+                      class={[
+                        "rounded-lg bg-primary/10 border-l-3 border-primary px-3 text-sm transition-colors",
+                        if(@editing == {:description, item.id},
+                          do: "relative z-10 py-2 bg-base-300 shadow-lg",
+                          else: "py-1.5 hover:bg-primary/20"
+                        )
+                      ]}
                       style={"grid-row: #{item_grid_row(item, start_hour)} / span 2; grid-column: 2;"}
                     >
                       <span class="font-mono text-xs text-primary font-semibold">
                         {Calendar.strftime(item.time_value, "%H:%M")}
                       </span>
                       <%= if @editing == {:description, item.id} do %>
-                        <.form for={%{}} phx-submit="save_description" id={"desc-form-#{item.id}"} class="inline ml-2">
+                        <.form for={%{}} phx-submit="save_description" id={"desc-form-#{item.id}"} class="mt-1">
                           <input type="hidden" name="item-id" value={item.id} />
-                          <input type="text" name="value" value={item.description} id={"desc-input-#{item.id}"} class="input input-xs input-bordered text-sm" phx-blur={JS.dispatch("submit", to: "#desc-form-#{item.id}")} phx-keydown="cancel_edit" phx-key="Escape" autofocus />
+                          <textarea name="value" id={"desc-input-#{item.id}"} class="textarea textarea-bordered textarea-sm w-full text-sm leading-snug" rows="2" phx-blur={JS.dispatch("submit", to: "#desc-form-#{item.id}")} phx-keydown="cancel_edit" phx-key="Escape" autofocus>{item.description}</textarea>
                         </.form>
                       <% else %>
                         <span class="ml-2 cursor-pointer hover:text-primary" phx-click="edit_description" phx-value-item-id={item.id}>
