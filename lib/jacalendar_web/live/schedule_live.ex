@@ -19,6 +19,7 @@ defmodule JacalendarWeb.ScheduleLive do
       |> assign(:current_date, nil)
       |> assign(:editing, nil)
       |> assign(:parse_error, nil)
+      |> assign(:selected_day, nil)
 
     case params do
       %{"id" => id} ->
@@ -82,6 +83,14 @@ defmodule JacalendarWeb.ScheduleLive do
     itinerary = Itineraries.get_itinerary!(id)
     {:ok, _} = Itineraries.delete_itinerary(itinerary)
     {:noreply, push_navigate(socket, to: "/")}
+  end
+
+  def handle_event("select_day", %{"day-id" => "all"}, socket) do
+    {:noreply, assign(socket, :selected_day, nil)}
+  end
+
+  def handle_event("select_day", %{"day-id" => day_id}, socket) do
+    {:noreply, assign(socket, :selected_day, String.to_integer(day_id))}
   end
 
   def handle_event("client_time", %{"time" => time_str, "date" => date_str}, socket) do
@@ -383,6 +392,32 @@ defmodule JacalendarWeb.ScheduleLive do
               </div>
             </div>
 
+            <%!-- Day filter pills --%>
+            <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+              <button
+                phx-click="select_day"
+                phx-value-day-id="all"
+                class={[
+                  "btn btn-sm shrink-0",
+                  if(@selected_day == nil, do: "btn-active btn-primary", else: "btn-ghost")
+                ]}
+              >
+                全部
+              </button>
+              <button
+                :for={day <- @itinerary.days}
+                phx-click="select_day"
+                phx-value-day-id={day.id}
+                class={[
+                  "btn btn-sm shrink-0 flex flex-col items-center leading-tight h-auto py-1.5",
+                  if(@selected_day == day.id, do: "btn-active btn-primary", else: "btn-ghost")
+                ]}
+              >
+                <span class="text-xs font-mono">{Calendar.strftime(day.date, "%m/%d")}</span>
+                <span class="text-xs">{day.title}</span>
+              </button>
+            </div>
+
             <%!-- Metadata --%>
             <% meta = @itinerary.metadata || %{} %>
             <% flights = meta["flights"] || [] %>
@@ -428,7 +463,8 @@ defmodule JacalendarWeb.ScheduleLive do
             </div>
 
             <%!-- Days --%>
-            <div :for={day <- @itinerary.days} class="space-y-2">
+            <% filtered_days = if @selected_day, do: Enum.filter(@itinerary.days, & &1.id == @selected_day), else: @itinerary.days %>
+            <div :for={day <- filtered_days} class="space-y-2">
               <div class={[
                 "flex items-baseline gap-3 py-2 border-b-2",
                 if(@current_date && day.date == @current_date,
