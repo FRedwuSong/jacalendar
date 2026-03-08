@@ -255,10 +255,8 @@ defmodule JacalendarWeb.ScheduleLive do
     {Enum.sort_by(scheduled, & &1.time_value), unscheduled}
   end
 
-  defp flight_events_for_day(metadata, day_date, scheduled_items) do
+  defp flight_events_for_day(metadata, day_date, _scheduled_items) do
     flights = (metadata || %{})["flights"] || []
-    scheduled_times = MapSet.new(scheduled_items, & &1.time_value)
-
     Enum.flat_map(flights, fn flight ->
       flight_date =
         case flight["date"] do
@@ -272,35 +270,26 @@ defmodule JacalendarWeb.ScheduleLive do
         arr = flight["arrival"]
         flight_num = flight["flight_number"] || ""
 
-        dep_events =
-          if dep && dep["time"] do
-            [h, m] = String.split(dep["time"], ":")
-            dep_time = Time.new!(String.to_integer(h), String.to_integer(m), 0)
+        events =
+          if dep && dep["time"] && arr && arr["time"] do
+            [dh, dm] = String.split(dep["time"], ":")
+            dep_time = Time.new!(String.to_integer(dh), String.to_integer(dm), 0)
             checkin_time = Time.add(dep_time, -3 * 3600)
 
-            checkin_event = [%{type: :flight, time_value: checkin_time, label: "抵達 #{dep["code"]} #{dep["name"]}機場"}]
-            dep_event = [%{type: :flight, time_value: dep_time, label: "#{flight_num} #{dep["code"]} #{dep["name"]} 出發"}]
+            [ah, am] = String.split(arr["time"], ":")
+            arr_time = Time.new!(String.to_integer(ah), String.to_integer(am), 0)
 
-            checkin_event ++ dep_event
+            [
+              %{type: :flight, time_value: checkin_time, end_time: dep_time,
+                label: "抵達 #{dep["code"]} #{dep["name"]}機場"},
+              %{type: :flight, time_value: dep_time, end_time: arr_time,
+                label: "#{flight_num} #{dep["code"]} #{dep["name"]} → #{arr["code"]} #{arr["name"]}"}
+            ]
           else
             []
           end
 
-        arr_events =
-          if arr && arr["time"] do
-            [h, m] = String.split(arr["time"], ":")
-            time = Time.new!(String.to_integer(h), String.to_integer(m), 0)
-
-            if time not in scheduled_times do
-              [%{type: :flight, time_value: time, label: "#{flight_num} #{arr["code"]} #{arr["name"]} 抵達"}]
-            else
-              []
-            end
-          else
-            []
-          end
-
-        dep_events ++ arr_events
+        events
       else
         []
       end
@@ -314,6 +303,14 @@ defmodule JacalendarWeb.ScheduleLive do
     min_h = times |> Enum.map(& &1.hour) |> Enum.min() |> then(&max(&1 - 1, 0))
     max_h = times |> Enum.map(& &1.hour) |> Enum.max() |> then(&min(&1 + 2, 24))
     {min_h, max_h}
+  end
+
+  defp flight_grid_span(flight_event) do
+    start_minutes = flight_event.time_value.hour * 60 + flight_event.time_value.minute
+    end_minutes = flight_event.end_time.hour * 60 + flight_event.end_time.minute
+    duration_minutes = end_minutes - start_minutes
+    # Each row = 30 minutes, minimum 2 rows
+    max(div(duration_minutes, 30) + if(rem(duration_minutes, 30) > 0, do: 1, else: 0), 2)
   end
 
   defp item_grid_row(item, start_hour) do
@@ -645,14 +642,20 @@ defmodule JacalendarWeb.ScheduleLive do
                   <%!-- Timeline items (scheduled + flights) --%>
                   <%= for entry <- all_timeline_items do %>
                     <%= if entry.type == :flight do %>
+                      <% flight_span = flight_grid_span(entry.data) %>
                       <div
-                        class="rounded-lg bg-warning/10 border-l-3 border-warning px-3 py-1.5 text-sm"
-                        style={"grid-row: #{item_grid_row(entry, start_hour)} / span 2; grid-column: 2;"}
+                        class="rounded-lg bg-warning/10 border-l-3 border-warning px-3 py-2 text-sm flex flex-col justify-between"
+                        style={"grid-row: #{item_grid_row(entry, start_hour)} / span #{flight_span}; grid-column: 2;"}
                       >
-                        <span class="font-mono text-xs text-warning font-semibold">
-                          {Calendar.strftime(entry.time_value, "%H:%M")}
-                        </span>
-                        <span class="ml-2">{entry.data.label}</span>
+                        <div>
+                          <span class="font-mono text-xs text-warning font-semibold">
+                            {Calendar.strftime(entry.time_value, "%H:%M")}
+                          </span>
+                          <span class="ml-2">{entry.data.label}</span>
+                        </div>
+                        <div class="text-right text-xs text-warning/60 font-mono">
+                          {Calendar.strftime(entry.data.end_time, "%H:%M")}
+                        </div>
                       </div>
                     <% else %>
                       <% item = entry.data %>
