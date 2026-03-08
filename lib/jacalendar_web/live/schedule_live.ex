@@ -255,6 +255,58 @@ defmodule JacalendarWeb.ScheduleLive do
     {Enum.sort_by(scheduled, & &1.time_value), unscheduled}
   end
 
+  defp flight_events_for_day(metadata, day_date, scheduled_items) do
+    flights = (metadata || %{})["flights"] || []
+    scheduled_times = MapSet.new(scheduled_items, & &1.time_value)
+
+    Enum.flat_map(flights, fn flight ->
+      flight_date =
+        case flight["date"] do
+          %Date{} = d -> d
+          s when is_binary(s) -> Date.from_iso8601!(s)
+          _ -> nil
+        end
+
+      if flight_date == day_date do
+        dep = flight["departure"]
+        arr = flight["arrival"]
+        flight_num = flight["flight_number"] || ""
+
+        dep_events =
+          if dep && dep["time"] do
+            [h, m] = String.split(dep["time"], ":")
+            dep_time = Time.new!(String.to_integer(h), String.to_integer(m), 0)
+            checkin_time = Time.add(dep_time, -3 * 3600)
+
+            checkin_event = [%{type: :flight, time_value: checkin_time, label: "抵達 #{dep["code"]} #{dep["name"]}機場"}]
+            dep_event = [%{type: :flight, time_value: dep_time, label: "#{flight_num} #{dep["code"]} #{dep["name"]} 出發"}]
+
+            checkin_event ++ dep_event
+          else
+            []
+          end
+
+        arr_events =
+          if arr && arr["time"] do
+            [h, m] = String.split(arr["time"], ":")
+            time = Time.new!(String.to_integer(h), String.to_integer(m), 0)
+
+            if time not in scheduled_times do
+              [%{type: :flight, time_value: time, label: "#{flight_num} #{arr["code"]} #{arr["name"]} 抵達"}]
+            else
+              []
+            end
+          else
+            []
+          end
+
+        dep_events ++ arr_events
+      else
+        []
+      end
+    end)
+  end
+
   defp timeline_range([]), do: {0, 23}
 
   defp timeline_range(scheduled_items) do
@@ -505,6 +557,12 @@ defmodule JacalendarWeb.ScheduleLive do
               <%!-- Single day: Timeline view --%>
               <% [day] = Enum.filter(@itinerary.days, & &1.id == @selected_day) %>
               <% {scheduled_items, unscheduled_items} = split_items_by_schedule(day.items) %>
+              <% flight_events = flight_events_for_day(@itinerary.metadata, day.date, scheduled_items) %>
+              <% all_timeline_items = Enum.sort_by(
+                Enum.map(scheduled_items, &%{type: :item, data: &1, time_value: &1.time_value}) ++
+                Enum.map(flight_events, &%{type: :flight, data: &1, time_value: &1.time_value}),
+                & &1.time_value
+              ) %>
 
               <%!-- Day header --%>
               <div class={[
@@ -563,8 +621,8 @@ defmodule JacalendarWeb.ScheduleLive do
               </div>
 
               <%!-- Timeline grid --%>
-              <%= if scheduled_items != [] do %>
-                <% {start_hour, end_hour} = timeline_range(scheduled_items) %>
+              <%= if all_timeline_items != [] do %>
+                <% {start_hour, end_hour} = timeline_range(all_timeline_items) %>
                 <% total_rows = (end_hour - start_hour) * 2 %>
                 <div
                   class="grid relative"
@@ -584,33 +642,46 @@ defmodule JacalendarWeb.ScheduleLive do
                     />
                   <% end %>
 
-                  <%!-- Scheduled items --%>
-                  <%= for item <- scheduled_items do %>
-                    <div
-                      id={"timeline-item-#{item.id}"}
-                      class={[
-                        "rounded-lg bg-primary/10 border-l-3 border-primary px-3 text-sm transition-colors",
-                        if(@editing == {:description, item.id},
-                          do: "relative z-10 py-2 bg-base-300 shadow-lg",
-                          else: "py-1.5 hover:bg-primary/20"
-                        )
-                      ]}
-                      style={"grid-row: #{item_grid_row(item, start_hour)} / span 2; grid-column: 2;"}
-                    >
-                      <span class="font-mono text-xs text-primary font-semibold">
-                        {Calendar.strftime(item.time_value, "%H:%M")}
-                      </span>
-                      <%= if @editing == {:description, item.id} do %>
-                        <.form for={%{}} phx-submit="save_description" id={"desc-form-#{item.id}"} class="mt-1">
-                          <input type="hidden" name="item-id" value={item.id} />
-                          <textarea name="value" id={"desc-input-#{item.id}"} class="textarea textarea-bordered textarea-sm w-full text-sm leading-snug" rows="2" phx-blur={JS.dispatch("submit", to: "#desc-form-#{item.id}")} phx-keydown="cancel_edit" phx-key="Escape" autofocus>{item.description}</textarea>
-                        </.form>
-                      <% else %>
-                        <span class="ml-2 cursor-pointer hover:text-primary" phx-click="edit_description" phx-value-item-id={item.id}>
-                          {item.description}
+                  <%!-- Timeline items (scheduled + flights) --%>
+                  <%= for entry <- all_timeline_items do %>
+                    <%= if entry.type == :flight do %>
+                      <div
+                        class="rounded-lg bg-warning/10 border-l-3 border-warning px-3 py-1.5 text-sm"
+                        style={"grid-row: #{item_grid_row(entry, start_hour)} / span 2; grid-column: 2;"}
+                      >
+                        <span class="font-mono text-xs text-warning font-semibold">
+                          {Calendar.strftime(entry.time_value, "%H:%M")}
                         </span>
-                      <% end %>
-                    </div>
+                        <span class="ml-2">{entry.data.label}</span>
+                      </div>
+                    <% else %>
+                      <% item = entry.data %>
+                      <div
+                        id={"timeline-item-#{item.id}"}
+                        class={[
+                          "rounded-lg bg-primary/10 border-l-3 border-primary px-3 text-sm transition-colors",
+                          if(@editing == {:description, item.id},
+                            do: "relative z-10 py-2 bg-base-300 shadow-lg",
+                            else: "py-1.5 hover:bg-primary/20"
+                          )
+                        ]}
+                        style={"grid-row: #{item_grid_row(entry, start_hour)} / span 2; grid-column: 2;"}
+                      >
+                        <span class="font-mono text-xs text-primary font-semibold">
+                          {Calendar.strftime(item.time_value, "%H:%M")}
+                        </span>
+                        <%= if @editing == {:description, item.id} do %>
+                          <.form for={%{}} phx-submit="save_description" id={"desc-form-#{item.id}"} class="mt-1">
+                            <input type="hidden" name="item-id" value={item.id} />
+                            <textarea name="value" id={"desc-input-#{item.id}"} class="textarea textarea-bordered textarea-sm w-full text-sm leading-snug" rows="2" phx-blur={JS.dispatch("submit", to: "#desc-form-#{item.id}")} phx-keydown="cancel_edit" phx-key="Escape" autofocus>{item.description}</textarea>
+                          </.form>
+                        <% else %>
+                          <span class="ml-2 cursor-pointer hover:text-primary" phx-click="edit_description" phx-value-item-id={item.id}>
+                            {item.description}
+                          </span>
+                        <% end %>
+                      </div>
+                    <% end %>
                   <% end %>
                 </div>
               <% end %>
