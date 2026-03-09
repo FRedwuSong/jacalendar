@@ -468,6 +468,19 @@ defmodule JacalendarWeb.ScheduleLive do
               </div>
             </div>
 
+            <%!-- Tab navigation --%>
+            <div class="flex gap-1 border-b border-base-300">
+              <span class="px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary">
+                行程表
+              </span>
+              <.link
+                navigate={"/itineraries/#{@itinerary.id}/checklist"}
+                class="px-4 py-2 text-sm font-medium text-base-content/60 hover:text-base-content border-b-2 border-transparent"
+              >
+                清單
+              </.link>
+            </div>
+
             <%!-- Day filter pills --%>
             <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
               <button

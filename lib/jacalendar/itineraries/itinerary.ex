@@ -9,6 +9,7 @@ defmodule Jacalendar.Itineraries.Itinerary do
     field :metadata, :map, default: %{}
 
     has_many :days, Jacalendar.Itineraries.Day, preload_order: [asc: :position]
+    has_many :checklist_items, Jacalendar.Itineraries.ChecklistItem, preload_order: [asc: :position]
 
     timestamps()
   end

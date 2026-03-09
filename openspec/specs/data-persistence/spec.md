@@ -138,3 +138,38 @@ tests:
   - test/jacalendar_web/live/schedule_live_test.exs
   - test/jacalendar/itineraries_test.exs
 -->
+
+---
+### Requirement: Checklist item persistence
+
+The system SHALL persist checklist items to a `checklist_items` table with fields: name, location, note, checked (boolean), position, and itinerary_id.
+
+#### Scenario: Save checklist items during itinerary creation
+
+- **WHEN** the user submits markdown that contains a checklist section
+- **THEN** the system SHALL store all parsed checklist items in the `checklist_items` table with `checked` defaulting to `false`
+
+#### Scenario: Toggle checked state
+
+- **WHEN** the user toggles a checklist item's checked state
+- **THEN** the system SHALL update the `checked` field in the database
+
+#### Scenario: Cascade delete
+
+- **WHEN** an itinerary is deleted
+- **THEN** the system SHALL delete all associated checklist items
+
+<!-- @trace
+source: add-checklist
+updated: 2026-03-09
+code:
+  - priv/repo/migrations/20260309023704_create_checklist_items.exs
+  - lib/jacalendar_web/router.ex
+  - lib/jacalendar/itineraries/checklist_item.ex
+  - lib/jacalendar/itineraries/itinerary.ex
+  - lib/jacalendar_web/live/checklist_live.ex
+  - lib/jacalendar/itinerary.ex
+  - lib/jacalendar/markdown_parser.ex
+  - lib/jacalendar/itineraries.ex
+  - lib/jacalendar_web/live/schedule_live.ex
+-->

@@ -28,6 +28,7 @@ defmodule Jacalendar.MarkdownParser do
     {title, date_range} = parse_title(lines)
     metadata = parse_metadata(lines)
     days = parse_days(lines)
+    checklist = parse_checklist(lines)
 
     case {title, days} do
       {nil, []} ->
@@ -39,7 +40,8 @@ defmodule Jacalendar.MarkdownParser do
            title: title,
            date_range: date_range,
            metadata: metadata,
-           days: days
+           days: days,
+           checklist: checklist
          }}
     end
   end
@@ -206,6 +208,26 @@ defmodule Jacalendar.MarkdownParser do
       end)
 
     %{name: name, address: address, phone: phone}
+  end
+
+  defp parse_checklist(lines) do
+    section = extract_section(lines, "必訪景點清單")
+
+    section
+    |> Enum.map(&String.trim/1)
+    |> Enum.filter(&String.match?(&1, ~r/^\d+\./))
+    |> Enum.with_index()
+    |> Enum.map(fn {line, idx} ->
+      # Pattern: "1.  **Name** (Location) - **Note**"
+      {name, location, note} =
+        case Regex.run(~r/\d+\.\s+\*\*(.+?)\*\*\s*\((.+?)\)\s*(?:-\s*\*\*(.+?)\*\*)?/u, line) do
+          [_, n, l, no] -> {n, l, no}
+          [_, n, l] -> {n, l, nil}
+          _ -> {String.replace(line, ~r/^\d+\.\s+/, ""), nil, nil}
+        end
+
+      %{name: name, location: location, note: note, position: idx}
+    end)
   end
 
   defp extract_section(lines, section_name) do

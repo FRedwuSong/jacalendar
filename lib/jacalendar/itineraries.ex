@@ -1,7 +1,7 @@
 defmodule Jacalendar.Itineraries do
   import Ecto.Query
   alias Jacalendar.Repo
-  alias Jacalendar.Itineraries.{Itinerary, Day, Item}
+  alias Jacalendar.Itineraries.{Itinerary, Day, Item, ChecklistItem}
 
   def create_itinerary(%Jacalendar.Itinerary{} = parsed) do
     {date_start, date_end} = parsed.date_range || {nil, nil}
@@ -47,6 +47,18 @@ defmodule Jacalendar.Itineraries do
         end
       end
 
+      for {cl, pos} <- Enum.with_index(parsed.checklist || []) do
+        %ChecklistItem{}
+        |> ChecklistItem.changeset(%{
+          name: cl.name,
+          location: cl.location,
+          note: cl.note,
+          position: pos,
+          itinerary_id: itinerary.id
+        })
+        |> Repo.insert!()
+      end
+
       itinerary.id
     end)
   end
@@ -60,7 +72,7 @@ defmodule Jacalendar.Itineraries do
   def get_itinerary!(id) do
     Itinerary
     |> Repo.get!(id)
-    |> Repo.preload(days: :items)
+    |> Repo.preload([:checklist_items, days: :items])
   end
 
   def update_item(%Item{} = item, attrs) do
@@ -80,6 +92,14 @@ defmodule Jacalendar.Itineraries do
   end
 
   def get_item!(id), do: Repo.get!(Item, id)
+
+  def get_checklist_item!(id), do: Repo.get!(ChecklistItem, id)
+
+  def toggle_checklist_item(%ChecklistItem{} = item) do
+    item
+    |> ChecklistItem.changeset(%{checked: !item.checked})
+    |> Repo.update()
+  end
 
   # Time serialization
 

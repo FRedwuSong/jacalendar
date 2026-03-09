@@ -19,6 +19,7 @@ defmodule JacalendarWeb.Router do
 
     live "/", ScheduleLive
     live "/itineraries/:id", ScheduleLive
+    live "/itineraries/:id/checklist", ChecklistLive
   end
 
   # Other scopes may use custom stacks.

@@ -1,5 +1,5 @@
 defmodule Jacalendar.Itinerary do
-  defstruct [:title, :date_range, :metadata, days: []]
+  defstruct [:title, :date_range, :metadata, days: [], checklist: []]
 
   defmodule Day do
     defstruct [:date, :weekday, :title, items: []]
