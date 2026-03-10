@@ -24,12 +24,30 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/jacalendar"
 import topbar from "../vendor/topbar"
+import Sortable from "../vendor/sortable.min.js"
+
+const Hooks = {
+  ...colocatedHooks,
+  Sortable: {
+    mounted() {
+      new Sortable(this.el, {
+        handle: ".drag-handle",
+        animation: 150,
+        ghostClass: "opacity-30",
+        onEnd: () => {
+          const ids = Array.from(this.el.children).map(el => parseInt(el.dataset.id))
+          this.pushEvent("reorder", {ids})
+        }
+      })
+    }
+  }
+}
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: Hooks,
 })
 
 // Show progress bar on live navigation and form submits

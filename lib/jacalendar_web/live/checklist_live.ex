@@ -17,12 +17,21 @@ defmodule JacalendarWeb.ChecklistLive do
   def handle_event("toggle", %{"id" => id_str}, socket) do
     item = Itineraries.get_checklist_item!(String.to_integer(id_str))
     {:ok, _} = Itineraries.toggle_checklist_item(item)
+    {:noreply, reload_checklist(socket)}
+  end
+
+  @impl true
+  def handle_event("reorder", %{"ids" => ids}, socket) do
+    Itineraries.reorder_checklist_items(ids)
+    {:noreply, reload_checklist(socket)}
+  end
+
+  defp reload_checklist(socket) do
     itinerary = Itineraries.get_itinerary!(socket.assigns.itinerary.id)
 
-    {:noreply,
-     socket
-     |> assign(:itinerary, itinerary)
-     |> assign(:checklist_items, itinerary.checklist_items)}
+    socket
+    |> assign(:itinerary, itinerary)
+    |> assign(:checklist_items, itinerary.checklist_items)
   end
 
   @impl true
@@ -66,24 +75,32 @@ defmodule JacalendarWeb.ChecklistLive do
           <div class="text-sm text-base-content/60 mb-2">
             已完成 {checked_count}/{length(@checklist_items)}
           </div>
-          <div class="space-y-1">
+          <div id="checklist-container" phx-hook="Sortable" class="space-y-1">
             <div
               :for={item <- @checklist_items}
               id={"checklist-#{item.id}"}
+              data-id={item.id}
               class={[
-                "flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors",
+                "flex items-center gap-3 px-4 py-3 rounded-lg transition-colors",
                 if(item.checked, do: "bg-base-200/50 opacity-60", else: "hover:bg-base-200")
               ]}
-              phx-click="toggle"
-              phx-value-id={item.id}
             >
-              <div class={[
-                "size-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors",
-                if(item.checked, do: "bg-primary border-primary", else: "border-base-300")
-              ]}>
-                <.icon :if={item.checked} name="hero-check" class="size-3 text-primary-content" />
+              <div class="drag-handle cursor-grab active:cursor-grabbing shrink-0 text-base-content/30 hover:text-base-content/60 touch-none">
+                <.icon name="hero-bars-3" class="size-5" />
               </div>
-              <div class="flex-1 min-w-0">
+              <div
+                class="cursor-pointer shrink-0"
+                phx-click="toggle"
+                phx-value-id={item.id}
+              >
+                <div class={[
+                  "size-5 rounded border-2 flex items-center justify-center transition-colors",
+                  if(item.checked, do: "bg-primary border-primary", else: "border-base-300")
+                ]}>
+                  <.icon :if={item.checked} name="hero-check" class="size-3 text-primary-content" />
+                </div>
+              </div>
+              <div class="flex-1 min-w-0 cursor-pointer" phx-click="toggle" phx-value-id={item.id}>
                 <p class={["font-medium", if(item.checked, do: "line-through text-base-content/50")]}>
                   {item.name}
                 </p>

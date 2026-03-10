@@ -72,7 +72,7 @@ defmodule Jacalendar.Itineraries do
   def get_itinerary!(id) do
     Itinerary
     |> Repo.get!(id)
-    |> Repo.preload([:checklist_items, days: :items])
+    |> Repo.preload([{:checklist_items, from(c in ChecklistItem, order_by: c.position)}, days: :items])
   end
 
   def update_item(%Item{} = item, attrs) do
@@ -99,6 +99,17 @@ defmodule Jacalendar.Itineraries do
     item
     |> ChecklistItem.changeset(%{checked: !item.checked})
     |> Repo.update()
+  end
+
+  def reorder_checklist_items(ids) when is_list(ids) do
+    Repo.transaction(fn ->
+      ids
+      |> Enum.with_index()
+      |> Enum.each(fn {id, pos} ->
+        from(c in ChecklistItem, where: c.id == ^id)
+        |> Repo.update_all(set: [position: pos])
+      end)
+    end)
   end
 
   # Time serialization
