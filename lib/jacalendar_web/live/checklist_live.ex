@@ -95,7 +95,7 @@ defmodule JacalendarWeb.ChecklistLive do
               >
                 <div class={[
                   "size-5 rounded border-2 flex items-center justify-center transition-colors",
-                  if(item.checked, do: "bg-primary border-primary", else: "border-base-300")
+                  if(item.checked, do: "bg-primary border-primary", else: "border-base-content/30")
                 ]}>
                   <.icon :if={item.checked} name="hero-check" class="size-3 text-primary-content" />
                 </div>
