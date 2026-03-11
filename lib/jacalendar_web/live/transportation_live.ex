@@ -251,7 +251,7 @@ defmodule JacalendarWeb.TransportationLive do
   defp upload_error_message(_), do: "上傳錯誤"
 
   defp format_route_date(%{day_date: %Date{} = date}),
-    do: "#{date.month}/#{date.day}"
+    do: "#{date.day}"
 
   defp format_route_date(route), do: route.day_label
 
