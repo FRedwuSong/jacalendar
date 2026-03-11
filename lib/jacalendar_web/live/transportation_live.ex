@@ -14,7 +14,6 @@ defmodule JacalendarWeb.TransportationLive do
      |> assign(:has_transport_data, has_transport_data?(itinerary))
      |> assign(:import_mode, false)
      |> assign(:import_error, nil)
-     |> assign(:copied_id, nil)
      |> assign(:expanded, MapSet.new())
      |> allow_upload(:markdown_file, accept: ~w(.md .txt .markdown), max_entries: 1)}
   end
@@ -76,16 +75,6 @@ defmodule JacalendarWeb.TransportationLive do
       end
 
     {:noreply, assign(socket, :expanded, expanded)}
-  end
-
-  @impl true
-  def handle_event("copy", %{"id" => id}, socket) do
-    {:noreply, assign(socket, :copied_id, id)}
-  end
-
-  @impl true
-  def handle_event("clear_copied", _, socket) do
-    {:noreply, assign(socket, :copied_id, nil)}
   end
 
   @impl true
@@ -173,36 +162,27 @@ defmodule JacalendarWeb.TransportationLive do
             </div>
           </div>
 
-          <%!-- Taxi Address Cards --%>
+          <%!-- Address Cards --%>
           <div :if={@itinerary.taxi_address_cards != []} class="space-y-2">
-            <h2 class="text-lg font-semibold">計程車地址卡</h2>
-            <p class="text-sm text-base-content/50">點擊複製，出示日文地址給司機</p>
+            <h2 class="text-lg font-semibold">地址卡</h2>
+            <p class="text-sm text-base-content/50">點擊導航，從目前位置出發</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div
+              <a
                 :for={card <- @itinerary.taxi_address_cards}
-                id={"card-#{card.id}"}
-                class="card bg-base-200/50 p-4 space-y-1.5"
+                href={"https://www.google.com/maps/dir/?api=1&destination=#{URI.encode(card.address)}"}
+                target="_blank"
+                class="card bg-base-200/50 p-4 space-y-1.5 hover:bg-base-200 transition-colors"
               >
                 <div class="flex items-start justify-between gap-2">
                   <p class="font-semibold text-sm">{card.name}</p>
-                  <button
-                    phx-click={
-                      JS.dispatch("phx:copy", to: "#card-#{card.id}", detail: %{text: "#{card.name_ja}\n#{card.address}"})
-                      |> JS.push("copy", value: %{id: to_string(card.id)})
-                    }
-                    class="btn btn-ghost btn-xs shrink-0"
-                  >
-                    <%= if @copied_id == to_string(card.id) do %>
-                      <span class="text-success text-xs">已複製</span>
-                    <% else %>
-                      <.icon name="hero-clipboard-document" class="size-4" />
-                    <% end %>
-                  </button>
+                  <span class="text-primary shrink-0">
+                    <.icon name="hero-map-pin" class="size-4" />
+                  </span>
                 </div>
                 <p :if={card.name_ja} class="text-sm text-base-content/70">{card.name_ja}</p>
                 <p class="text-sm font-mono text-base-content/60">{card.address}</p>
                 <p :if={card.note} class="text-xs text-base-content/40 italic">{card.note}</p>
-              </div>
+              </a>
             </div>
           </div>
 
