@@ -133,7 +133,7 @@ defmodule JacalendarWeb.TransportationLive do
                 phx-value-id={"route-#{route.id}"}
               />
               <div class="collapse-title font-medium">
-                <span class="badge badge-primary badge-sm mr-2">{route.day_label}</span>
+                <span class="badge badge-primary badge-sm mr-2">{format_route_date(route)}</span>
                 {route.title}
               </div>
               <div class="collapse-content">
@@ -249,6 +249,11 @@ defmodule JacalendarWeb.TransportationLive do
   defp upload_error_message(:too_many_files), do: "只能上傳一個檔案"
   defp upload_error_message(:not_accepted), do: "僅接受 .md / .txt 檔案"
   defp upload_error_message(_), do: "上傳錯誤"
+
+  defp format_route_date(%{day_date: %Date{} = date}),
+    do: "#{date.month}/#{date.day}"
+
+  defp format_route_date(route), do: route.day_label
 
   defp section_emoji("tools"), do: "📱"
   defp section_emoji("hotel_transport"), do: "🏨"
