@@ -51,18 +51,7 @@ defmodule JacalendarWeb.ChecklistLive do
           </.link>
         </div>
 
-        <%!-- Tab navigation --%>
-        <div class="flex gap-1 border-b border-base-300">
-          <.link
-            navigate={"/itineraries/#{@itinerary.id}"}
-            class="px-4 py-2 text-sm font-medium text-base-content/60 hover:text-base-content border-b-2 border-transparent"
-          >
-            行程表
-          </.link>
-          <span class="px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary">
-            清單
-          </span>
-        </div>
+        <.itinerary_tabs itinerary_id={@itinerary.id} active={:checklist} />
 
         <%!-- Checklist --%>
         <%= if @checklist_items == [] do %>

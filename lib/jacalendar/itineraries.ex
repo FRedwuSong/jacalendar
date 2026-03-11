@@ -1,7 +1,7 @@
 defmodule Jacalendar.Itineraries do
   import Ecto.Query
   alias Jacalendar.Repo
-  alias Jacalendar.Itineraries.{Itinerary, Day, Item, ChecklistItem}
+  alias Jacalendar.Itineraries.{Itinerary, Day, Item, ChecklistItem, TransportSection, TransportRoute, TaxiAddressCard}
 
   def create_itinerary(%Jacalendar.Itinerary{} = parsed) do
     {date_start, date_end} = parsed.date_range || {nil, nil}
@@ -72,7 +72,13 @@ defmodule Jacalendar.Itineraries do
   def get_itinerary!(id) do
     Itinerary
     |> Repo.get!(id)
-    |> Repo.preload([{:checklist_items, from(c in ChecklistItem, order_by: c.position)}, days: :items])
+    |> Repo.preload([
+      {:checklist_items, from(c in ChecklistItem, order_by: c.position)},
+      :transport_sections,
+      :transport_routes,
+      :taxi_address_cards,
+      days: :items
+    ])
   end
 
   def update_item(%Item{} = item, attrs) do
@@ -99,6 +105,35 @@ defmodule Jacalendar.Itineraries do
     item
     |> ChecklistItem.changeset(%{checked: !item.checked})
     |> Repo.update()
+  end
+
+  def import_transportation(itinerary_id, %{sections: sections, routes: routes, address_cards: cards}) do
+    Repo.transaction(fn ->
+      # Delete existing transport data for this itinerary
+      from(t in TransportSection, where: t.itinerary_id == ^itinerary_id) |> Repo.delete_all()
+      from(t in TransportRoute, where: t.itinerary_id == ^itinerary_id) |> Repo.delete_all()
+      from(t in TaxiAddressCard, where: t.itinerary_id == ^itinerary_id) |> Repo.delete_all()
+
+      for s <- sections do
+        %TransportSection{}
+        |> TransportSection.changeset(Map.put(s, :itinerary_id, itinerary_id))
+        |> Repo.insert!()
+      end
+
+      for r <- routes do
+        %TransportRoute{}
+        |> TransportRoute.changeset(Map.put(r, :itinerary_id, itinerary_id))
+        |> Repo.insert!()
+      end
+
+      for c <- cards do
+        %TaxiAddressCard{}
+        |> TaxiAddressCard.changeset(Map.put(c, :itinerary_id, itinerary_id))
+        |> Repo.insert!()
+      end
+
+      :ok
+    end)
   end
 
   def reorder_checklist_items(ids) when is_list(ids) do

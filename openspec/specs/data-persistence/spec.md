@@ -173,3 +173,113 @@ code:
   - lib/jacalendar/itineraries.ex
   - lib/jacalendar_web/live/schedule_live.ex
 -->
+
+---
+### Requirement: Transport section persistence
+
+The system SHALL persist transport sections to a `transport_sections` table with fields: section_type, title, content, position, and itinerary_id.
+
+#### Scenario: Save transport sections during import
+
+- **WHEN** the user imports transportation markdown that contains general sections
+- **THEN** the system SHALL store all parsed sections in the `transport_sections` table
+
+#### Scenario: Cascade delete transport sections
+
+- **WHEN** an itinerary is deleted
+- **THEN** the system SHALL delete all associated transport sections
+
+
+<!-- @trace
+source: add-transportation
+updated: 2026-03-11
+code:
+  - lib/jacalendar/itineraries/itinerary.ex
+  - lib/jacalendar/itineraries/taxi_address_card.ex
+  - lib/jacalendar/itineraries/transport_route.ex
+  - priv/repo/migrations/20260311060603_create_transport_routes.exs
+  - priv/repo/migrations/20260311060741_create_taxi_address_cards.exs
+  - lib/jacalendar_web/router.ex
+  - lib/jacalendar/itineraries.ex
+  - assets/js/app.js
+  - lib/jacalendar_web/live/transportation_live.ex
+  - priv/repo/migrations/20260311054907_create_transport_sections.exs
+  - lib/jacalendar_web/live/schedule_live.ex
+  - lib/jacalendar_web/components/core_components.ex
+  - lib/jacalendar_web/live/checklist_live.ex
+  - lib/jacalendar/transport_parser.ex
+  - lib/jacalendar/itineraries/transport_section.ex
+-->
+
+---
+### Requirement: Transport route persistence
+
+The system SHALL persist transport routes to a `transport_routes` table with fields: day_label, day_date, title, segments (JSON), position, and itinerary_id.
+
+#### Scenario: Save transport routes during import
+
+- **WHEN** the user imports transportation markdown that contains daily route details
+- **THEN** the system SHALL store all parsed routes with their segments in the `transport_routes` table
+
+#### Scenario: Cascade delete transport routes
+
+- **WHEN** an itinerary is deleted
+- **THEN** the system SHALL delete all associated transport routes
+
+
+<!-- @trace
+source: add-transportation
+updated: 2026-03-11
+code:
+  - lib/jacalendar/itineraries/itinerary.ex
+  - lib/jacalendar/itineraries/taxi_address_card.ex
+  - lib/jacalendar/itineraries/transport_route.ex
+  - priv/repo/migrations/20260311060603_create_transport_routes.exs
+  - priv/repo/migrations/20260311060741_create_taxi_address_cards.exs
+  - lib/jacalendar_web/router.ex
+  - lib/jacalendar/itineraries.ex
+  - assets/js/app.js
+  - lib/jacalendar_web/live/transportation_live.ex
+  - priv/repo/migrations/20260311054907_create_transport_sections.exs
+  - lib/jacalendar_web/live/schedule_live.ex
+  - lib/jacalendar_web/components/core_components.ex
+  - lib/jacalendar_web/live/checklist_live.ex
+  - lib/jacalendar/transport_parser.ex
+  - lib/jacalendar/itineraries/transport_section.ex
+-->
+
+---
+### Requirement: Taxi address card persistence
+
+The system SHALL persist taxi address cards to a `taxi_address_cards` table with fields: name, name_ja, address, note, position, and itinerary_id.
+
+#### Scenario: Save address cards during import
+
+- **WHEN** the user imports transportation markdown that contains an address card section
+- **THEN** the system SHALL store all parsed address cards in the `taxi_address_cards` table
+
+#### Scenario: Cascade delete address cards
+
+- **WHEN** an itinerary is deleted
+- **THEN** the system SHALL delete all associated taxi address cards
+
+<!-- @trace
+source: add-transportation
+updated: 2026-03-11
+code:
+  - lib/jacalendar/itineraries/itinerary.ex
+  - lib/jacalendar/itineraries/taxi_address_card.ex
+  - lib/jacalendar/itineraries/transport_route.ex
+  - priv/repo/migrations/20260311060603_create_transport_routes.exs
+  - priv/repo/migrations/20260311060741_create_taxi_address_cards.exs
+  - lib/jacalendar_web/router.ex
+  - lib/jacalendar/itineraries.ex
+  - assets/js/app.js
+  - lib/jacalendar_web/live/transportation_live.ex
+  - priv/repo/migrations/20260311054907_create_transport_sections.exs
+  - lib/jacalendar_web/live/schedule_live.ex
+  - lib/jacalendar_web/components/core_components.ex
+  - lib/jacalendar_web/live/checklist_live.ex
+  - lib/jacalendar/transport_parser.ex
+  - lib/jacalendar/itineraries/transport_section.ex
+-->

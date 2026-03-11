@@ -318,3 +318,39 @@ code:
   - lib/jacalendar/itineraries.ex
   - lib/jacalendar_web/live/schedule_live.ex
 -->
+
+---
+### Requirement: Separate transport parser module
+
+The system SHALL provide a dedicated `Jacalendar.TransportParser` module for parsing transportation markdown, separate from the itinerary `MarkdownParser`.
+
+#### Scenario: Transport parser invocation
+
+- **WHEN** `Jacalendar.TransportParser.parse/1` is called with a transportation markdown string
+- **THEN** it SHALL return structured transportation data without affecting the itinerary parser
+
+#### Scenario: Itinerary parser unchanged
+
+- **WHEN** `Jacalendar.MarkdownParser.parse/1` is called with an itinerary markdown string
+- **THEN** it SHALL continue to return itinerary data as before, unaffected by the transport parser addition
+
+<!-- @trace
+source: add-transportation
+updated: 2026-03-11
+code:
+  - lib/jacalendar/itineraries/itinerary.ex
+  - lib/jacalendar/itineraries/taxi_address_card.ex
+  - lib/jacalendar/itineraries/transport_route.ex
+  - priv/repo/migrations/20260311060603_create_transport_routes.exs
+  - priv/repo/migrations/20260311060741_create_taxi_address_cards.exs
+  - lib/jacalendar_web/router.ex
+  - lib/jacalendar/itineraries.ex
+  - assets/js/app.js
+  - lib/jacalendar_web/live/transportation_live.ex
+  - priv/repo/migrations/20260311054907_create_transport_sections.exs
+  - lib/jacalendar_web/live/schedule_live.ex
+  - lib/jacalendar_web/components/core_components.ex
+  - lib/jacalendar_web/live/checklist_live.ex
+  - lib/jacalendar/transport_parser.ex
+  - lib/jacalendar/itineraries/transport_section.ex
+-->

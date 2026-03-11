@@ -495,4 +495,43 @@ defmodule JacalendarWeb.CoreComponents do
   def translate_errors(errors, field) when is_list(errors) do
     for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
   end
+
+  @doc """
+  Renders tab navigation for itinerary detail pages.
+
+  ## Attributes
+
+    * `:itinerary_id` - The itinerary ID for building URLs
+    * `:active` - The active tab (:schedule, :checklist, or :transportation)
+  """
+  attr :itinerary_id, :integer, required: true
+  attr :active, :atom, required: true
+
+  def itinerary_tabs(assigns) do
+    ~H"""
+    <div class="flex gap-1 border-b border-base-300">
+      <.link
+        :for={{tab, label, path} <- tab_items(@itinerary_id)}
+        navigate={path}
+        class={[
+          "px-4 py-2 text-sm font-medium border-b-2",
+          if(tab == @active,
+            do: "text-primary border-primary",
+            else: "text-base-content/60 hover:text-base-content border-transparent"
+          )
+        ]}
+      >
+        {label}
+      </.link>
+    </div>
+    """
+  end
+
+  defp tab_items(id) do
+    [
+      {:schedule, "行程表", "/itineraries/#{id}"},
+      {:checklist, "清單", "/itineraries/#{id}/checklist"},
+      {:transportation, "交通", "/itineraries/#{id}/transportation"}
+    ]
+  end
 end
