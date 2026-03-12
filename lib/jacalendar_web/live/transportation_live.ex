@@ -45,24 +45,6 @@ defmodule JacalendarWeb.TransportationLive do
     end
   end
 
-  defp do_import(socket, markdown) do
-    case TransportParser.parse(markdown) do
-      {:ok, data} ->
-        {:ok, _} = Itineraries.import_transportation(socket.assigns.itinerary.id, data)
-        itinerary = Itineraries.get_itinerary!(socket.assigns.itinerary.id)
-
-        {:noreply,
-         socket
-         |> assign(:itinerary, itinerary)
-         |> assign(:has_transport_data, true)
-         |> assign(:import_mode, false)
-         |> assign(:import_error, nil)}
-
-      {:error, reason} ->
-        {:noreply, assign(socket, :import_error, reason)}
-    end
-  end
-
   @impl true
   def handle_event("toggle_section", %{"id" => id}, socket) do
     expanded = socket.assigns.expanded
@@ -80,6 +62,24 @@ defmodule JacalendarWeb.TransportationLive do
   @impl true
   def handle_event("validate", _params, socket) do
     {:noreply, socket}
+  end
+
+  defp do_import(socket, markdown) do
+    case TransportParser.parse(markdown) do
+      {:ok, data} ->
+        {:ok, _} = Itineraries.import_transportation(socket.assigns.itinerary.id, data)
+        itinerary = Itineraries.get_itinerary!(socket.assigns.itinerary.id)
+
+        {:noreply,
+         socket
+         |> assign(:itinerary, itinerary)
+         |> assign(:has_transport_data, true)
+         |> assign(:import_mode, false)
+         |> assign(:import_error, nil)}
+
+      {:error, reason} ->
+        {:noreply, assign(socket, :import_error, reason)}
+    end
   end
 
   @impl true

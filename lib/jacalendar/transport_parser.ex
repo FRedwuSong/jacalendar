@@ -252,6 +252,7 @@ defmodule Jacalendar.TransportParser do
       end
     end)
     |> Enum.reverse()
+    |> Enum.reject(fn card -> card.address == "" end)
     |> Enum.with_index()
     |> Enum.map(fn {card, idx} -> Map.put(card, :position, idx) end)
   end
