@@ -531,7 +531,8 @@ defmodule JacalendarWeb.CoreComponents do
     [
       {:schedule, "行程表", "/itineraries/#{id}"},
       {:checklist, "清單", "/itineraries/#{id}/checklist"},
-      {:transportation, "交通", "/itineraries/#{id}/transportation"}
+      {:transportation, "交通", "/itineraries/#{id}/transportation"},
+      {:food, "美食", "/food"}
     ]
   end
 end
