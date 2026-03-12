@@ -285,6 +285,7 @@ defmodule JacalendarWeb.TransportationLive do
 
   defp render_line(line) do
     trimmed = String.trim(line)
+    indent = String.length(line) - String.length(String.trim_leading(line))
 
     cond do
       # Sub-heading ###
@@ -292,22 +293,27 @@ defmodule JacalendarWeb.TransportationLive do
         text = String.trim_leading(trimmed, "### ") |> clean_inline()
         "<p class=\"font-semibold text-sm mt-3 mb-1\">#{text}</p>"
 
-      # Numbered list item
-      Regex.match?(~r/^\d+\.\s+/, trimmed) ->
-        text = Regex.replace(~r/^\d+\.\s+/, trimmed, "") |> clean_inline()
-        "<div class=\"flex gap-2 items-start py-0.5\"><span class=\"text-base-content/40 shrink-0\">•</span><span>#{text}</span></div>"
+      # Top-level numbered list item (no indent)
+      indent == 0 and Regex.match?(~r/^\d+\.\s+/, trimmed) ->
+        [_, num, text] = Regex.run(~r/^(\d+)\.\s+(.*)/, trimmed)
+        "<div class=\"flex gap-2 items-start py-0.5\"><span class=\"text-base-content/40 shrink-0 font-medium\">#{num}.</span><span>#{clean_inline(text)}</span></div>"
 
-      # Deep nested bullet (8+ spaces or 2 tabs)
-      Regex.match?(~r/^(\s{8,}|\t{2,})\*\s+/, line) ->
-        text = Regex.replace(~r/^\s+\*\s+/, line, "") |> clean_inline()
+      # Indented numbered list item
+      indent > 0 and Regex.match?(~r/^\d+\.\s+/, trimmed) ->
+        [_, num, text] = Regex.run(~r/^(\d+)\.\s+(.*)/, trimmed)
+        "<div class=\"flex gap-2 items-start py-0.5 pl-4\"><span class=\"text-base-content/40 shrink-0\">#{num}.</span><span>#{clean_inline(text)}</span></div>"
+
+      # Deep nested bullet (6+ spaces)
+      indent >= 6 and Regex.match?(~r/^\*\s+/, trimmed) ->
+        text = Regex.replace(~r/^\*\s+/, trimmed, "") |> clean_inline()
         "<div class=\"flex gap-2 items-start py-0.5 pl-8\"><span class=\"text-base-content/30 shrink-0\">‣</span><span>#{text}</span></div>"
 
-      # Nested bullet (4+ spaces or tab)
-      Regex.match?(~r/^(\s{4,}|\t)\*\s+/, line) ->
-        text = Regex.replace(~r/^\s+\*\s+/, line, "") |> clean_inline()
+      # Nested bullet (2-5 spaces)
+      indent >= 2 and Regex.match?(~r/^\*\s+/, trimmed) ->
+        text = Regex.replace(~r/^\*\s+/, trimmed, "") |> clean_inline()
         "<div class=\"flex gap-2 items-start py-0.5 pl-4\"><span class=\"text-base-content/30 shrink-0\">‣</span><span>#{text}</span></div>"
 
-      # Top-level bullet
+      # Top-level bullet (no indent)
       String.starts_with?(trimmed, "* ") ->
         text = String.trim_leading(trimmed, "* ") |> clean_inline()
         "<div class=\"flex gap-2 items-start py-0.5\"><span class=\"text-base-content/40 shrink-0\">•</span><span>#{text}</span></div>"
