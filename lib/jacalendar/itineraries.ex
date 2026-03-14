@@ -163,7 +163,11 @@ defmodule Jacalendar.Itineraries do
   def deserialize_time("pending", _), do: :pending
 
   defp serialize_airport(nil), do: nil
-  defp serialize_airport(a), do: %{"code" => a.code, "name" => a.name, "time" => a.time}
+
+  defp serialize_airport(a) do
+    %{"code" => a.code, "name" => a.name, "time" => a.time}
+    |> maybe_put("terminal", Map.get(a, :terminal))
+  end
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)

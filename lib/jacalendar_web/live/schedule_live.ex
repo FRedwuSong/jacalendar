@@ -255,7 +255,7 @@ defmodule JacalendarWeb.ScheduleLive do
     {Enum.sort_by(scheduled, & &1.time_value), unscheduled}
   end
 
-  defp flight_events_for_day(metadata, day_date, scheduled_items) do
+  defp flight_events_for_day(metadata, day_date, _scheduled_items) do
     flights = (metadata || %{})["flights"] || []
 
     Enum.flat_map(flights, fn flight ->
@@ -270,9 +270,6 @@ defmodule JacalendarWeb.ScheduleLive do
         dep = flight["departure"]
         arr = flight["arrival"]
         flight_num = flight["flight_number"] || ""
-        terminal = flight["terminal"]
-        terminal_suffix = if terminal, do: " · #{terminal}", else: ""
-
         if dep && dep["time"] && arr && arr["time"] do
           [dh, dm] = String.split(dep["time"], ":")
           dep_time = Time.new!(String.to_integer(dh), String.to_integer(dm), 0)
@@ -280,22 +277,17 @@ defmodule JacalendarWeb.ScheduleLive do
           [ah, am] = String.split(arr["time"], ":")
           arr_time = Time.new!(String.to_integer(ah), String.to_integer(am), 0)
 
-          # Skip flight events if scheduled items already cover departure/arrival times
-          has_near_dep = Enum.any?(scheduled_items, &time_near?(&1.time_value, dep_time, 60))
-          has_near_arr = Enum.any?(scheduled_items, &time_near?(&1.time_value, arr_time, 60))
+          checkin_time = Time.add(dep_time, -3 * 3600)
 
-          if has_near_dep or has_near_arr do
-            []
-          else
-            checkin_time = Time.add(dep_time, -3 * 3600)
+          dep_terminal = dep["terminal"] || flight["terminal"]
+          dep_t_suffix = if dep_terminal, do: " · T#{dep_terminal}", else: ""
 
-            [
-              %{type: :flight, time_value: checkin_time, end_time: dep_time,
-                label: "抵達 #{dep["code"]} #{dep["name"]}機場#{terminal_suffix}"},
-              %{type: :flight, time_value: dep_time, end_time: arr_time,
-                label: "#{flight_num} #{dep["code"]} #{dep["name"]} → #{arr["code"]} #{arr["name"]}#{terminal_suffix}"}
-            ]
-          end
+          [
+            %{type: :flight, time_value: checkin_time, end_time: dep_time,
+              label: "抵達 #{dep["code"]} #{dep["name"]}機場#{dep_t_suffix}"},
+            %{type: :flight, time_value: dep_time, end_time: arr_time,
+              label: "#{flight_num} #{dep["code"]} → #{arr["code"]} #{arr["name"]}"}
+          ]
         else
           []
         end
@@ -305,9 +297,6 @@ defmodule JacalendarWeb.ScheduleLive do
     end)
   end
 
-  defp time_near?(t1, t2, minutes) do
-    abs(Time.diff(t1, t2, :minute)) <= minutes
-  end
 
   defp timeline_range([]), do: {0, 23}
 
@@ -524,8 +513,8 @@ defmodule JacalendarWeb.ScheduleLive do
                   <h3 class="card-title text-sm">
                     <.icon name="hero-paper-airplane" class="size-4" /> 航班
                   </h3>
-                  <div :for={flight <- flights} class="text-sm space-y-0.5">
-                    <div>
+                  <div :for={flight <- flights} class="text-sm">
+                    <div class="flex items-center gap-2">
                       <span class="font-medium">
                         {if flight["direction"] == "outbound", do: "去程", else: "回程"}
                       </span>
@@ -535,13 +524,23 @@ defmodule JacalendarWeb.ScheduleLive do
                     </div>
                     <div
                       :if={flight["departure"] && flight["arrival"]}
-                      class="text-xs text-base-content/60 font-mono pl-2"
+                      class="flex items-center gap-3 mt-1 pl-2"
                     >
                       <% dep = flight["departure"] %>
                       <% arr = flight["arrival"] %>
-                      {dep["code"]} {dep["name"]} {dep["time"]} → {arr["code"]} {arr["name"]} {arr["time"]}
-                      <div :if={flight["terminal"]} class="text-base-content/40">
-                        {flight["terminal"]}
+                      <div class="text-center">
+                        <div class="font-mono text-sm font-semibold">{dep["time"]}</div>
+                        <div class="text-xs text-base-content/60">{dep["code"]} {dep["name"]}</div>
+                        <div :if={dep["terminal"]} class="text-[10px] text-base-content/40">T{dep["terminal"]}</div>
+                      </div>
+                      <div class="flex-1 flex items-center">
+                        <div class="flex-1 border-t border-base-content/20" />
+                        <.icon name="hero-arrow-right-mini" class="size-4 text-base-content/40" />
+                      </div>
+                      <div class="text-center">
+                        <div class="font-mono text-sm font-semibold">{arr["time"]}</div>
+                        <div class="text-xs text-base-content/60">{arr["code"]} {arr["name"]}</div>
+                        <div :if={arr["terminal"]} class="text-[10px] text-base-content/40">T{arr["terminal"]}</div>
                       </div>
                     </div>
                   </div>

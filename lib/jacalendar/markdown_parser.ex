@@ -163,19 +163,30 @@ defmodule Jacalendar.MarkdownParser do
 
   defp parse_flight_route(details) do
     clean = String.replace(details, ~r/\*\*/, "")
-    route_regex = ~r/([A-Z]{3})\s+(\S+)\s+(\d{1,2}:\d{2})\s*->\s*([A-Z]{3})\s+(\S+)\s+(\d{1,2}:\d{2})/
+
+    route_regex =
+      ~r/([A-Z]{3})\s+(\S+)\s+(\d{1,2}:\d{2})\s*(?:\(T(\d)\))?\s*->\s*([A-Z]{3})\s+(\S+)\s+(\d{1,2}:\d{2})\s*(?:\(T(\d)\))?/
 
     case Regex.run(route_regex, clean) do
-      [_, dep_code, dep_name, dep_time, arr_code, arr_name, arr_time] ->
+      [_ | captures] ->
+        [dep_code, dep_name, dep_time, dep_terminal, arr_code, arr_name, arr_time | rest] =
+          captures
+
+        arr_terminal = List.first(rest)
+
         {
-          %{code: dep_code, name: dep_name, time: dep_time},
-          %{code: arr_code, name: arr_name, time: arr_time}
+          %{code: dep_code, name: dep_name, time: dep_time, terminal: presence(dep_terminal)},
+          %{code: arr_code, name: arr_name, time: arr_time, terminal: presence(arr_terminal)}
         }
 
       _ ->
         {nil, nil}
     end
   end
+
+  defp presence(""), do: nil
+  defp presence(nil), do: nil
+  defp presence(s), do: s
 
   defp parse_hotel(lines) do
     hotel_section = extract_section(lines, "住宿資訊")
