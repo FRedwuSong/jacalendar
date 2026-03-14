@@ -193,7 +193,11 @@ defmodule Jacalendar.Itineraries do
         if metadata.hotel do
           %{"name" => metadata.hotel.name, "address" => metadata.hotel.address}
           |> maybe_put("phone", Map.get(metadata.hotel, :phone))
-        end
+        end,
+      "sun_times" =>
+        Enum.map(Map.get(metadata, :sun_times) || [], fn st ->
+          %{"date" => st.date, "sunrise" => st.sunrise, "sunset" => st.sunset}
+        end)
     }
   end
 end

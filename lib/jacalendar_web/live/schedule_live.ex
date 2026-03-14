@@ -335,6 +335,18 @@ defmodule JacalendarWeb.ScheduleLive do
     row
   end
 
+  defp sun_times_for_date(metadata, date) do
+    sun_times = (metadata || %{})["sun_times"] || []
+    Enum.find(sun_times, fn st ->
+      st_date = case st["date"] do
+        %Date{} = d -> d
+        s when is_binary(s) -> Date.from_iso8601!(s)
+        _ -> nil
+      end
+      st_date == date
+    end)
+  end
+
   defp format_hour(h) when h < 12, do: "#{String.pad_leading(to_string(h), 2, "0")}:00"
   defp format_hour(12), do: "12:00"
   defp format_hour(h), do: "#{String.pad_leading(to_string(h), 2, "0")}:00"
@@ -593,6 +605,7 @@ defmodule JacalendarWeb.ScheduleLive do
               ) %>
 
               <%!-- Day header --%>
+              <% sun = sun_times_for_date(@itinerary.metadata, day.date) %>
               <div class={[
                 "flex items-baseline gap-3 py-2 border-b-2",
                 if(@current_date && day.date == @current_date,
@@ -603,6 +616,9 @@ defmodule JacalendarWeb.ScheduleLive do
                 <span class="text-lg font-bold">{Calendar.strftime(day.date, "%m/%d")}</span>
                 <span class="badge badge-ghost badge-sm">{day.weekday}</span>
                 <span class="text-base-content/70">{day.title}</span>
+                <span :if={sun} class="ml-auto text-xs text-base-content/40 font-mono whitespace-nowrap">
+                  ☀ {sun["sunrise"]} — {sun["sunset"]}
+                </span>
               </div>
 
               <%!-- Unscheduled items section --%>
@@ -723,6 +739,7 @@ defmodule JacalendarWeb.ScheduleLive do
               <%!-- All days: List view --%>
               <% filtered_days = @itinerary.days %>
               <div :for={day <- filtered_days} class="space-y-2">
+              <% sun = sun_times_for_date(@itinerary.metadata, day.date) %>
               <div class={[
                 "flex items-baseline gap-3 py-2 border-b-2",
                 if(@current_date && day.date == @current_date,
@@ -733,6 +750,9 @@ defmodule JacalendarWeb.ScheduleLive do
                 <span class="text-lg font-bold">{Calendar.strftime(day.date, "%m/%d")}</span>
                 <span class="badge badge-ghost badge-sm">{day.weekday}</span>
                 <span class="text-base-content/70">{day.title}</span>
+                <span :if={sun} class="ml-auto text-xs text-base-content/40 font-mono whitespace-nowrap">
+                  ☀ {sun["sunrise"]} — {sun["sunset"]}
+                </span>
               </div>
 
               <div id={"day-#{day.id}"} class="space-y-1">

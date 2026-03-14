@@ -86,7 +86,8 @@ defmodule Jacalendar.MarkdownParser do
   defp parse_metadata(lines) do
     flights = parse_flights(lines)
     hotel = parse_hotel(lines)
-    %{flights: flights, hotel: hotel}
+    sun_times = parse_sun_times(lines)
+    %{flights: flights, hotel: hotel, sun_times: sun_times}
   end
 
   defp parse_flights(lines) do
@@ -219,6 +220,26 @@ defmodule Jacalendar.MarkdownParser do
       end)
 
     %{name: name, address: address, phone: phone}
+  end
+
+  defp parse_sun_times(lines) do
+    section = extract_section(lines, "日出")
+
+    section
+    |> Enum.flat_map(fn line ->
+      case Regex.run(~r/\|\s*(\d{4}\/\d{2}\/\d{2})\s*\|.*?\|\s*(\d{2}:\d{2})\s*\|\s*(\d{2}:\d{2})\s*\|/, line) do
+        [_, date_str, sunrise, sunset] ->
+          [y, m, d] = String.split(date_str, "/")
+
+          case Date.new(String.to_integer(y), String.to_integer(m), String.to_integer(d)) do
+            {:ok, date} -> [%{date: date, sunrise: sunrise, sunset: sunset}]
+            _ -> []
+          end
+
+        _ ->
+          []
+      end
+    end)
   end
 
   defp parse_checklist(lines) do
