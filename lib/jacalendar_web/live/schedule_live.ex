@@ -298,6 +298,17 @@ defmodule JacalendarWeb.ScheduleLive do
   end
 
 
+  defp filter_flight_overlaps(scheduled_items, []), do: scheduled_items
+
+  defp filter_flight_overlaps(scheduled_items, flight_events) do
+    Enum.reject(scheduled_items, fn item ->
+      Enum.any?(flight_events, fn fe ->
+        Time.compare(item.time_value, fe.time_value) != :lt and
+          Time.compare(item.time_value, fe.end_time) != :gt
+      end)
+    end)
+  end
+
   defp timeline_range([]), do: {0, 23}
 
   defp timeline_range(scheduled_items) do
@@ -572,8 +583,9 @@ defmodule JacalendarWeb.ScheduleLive do
               <% [day] = Enum.filter(@itinerary.days, & &1.id == @selected_day) %>
               <% {scheduled_items, unscheduled_items} = split_items_by_schedule(day.items) %>
               <% flight_events = flight_events_for_day(@itinerary.metadata, day.date, scheduled_items) %>
+              <% filtered_scheduled = filter_flight_overlaps(scheduled_items, flight_events) %>
               <% all_timeline_items = Enum.sort_by(
-                Enum.map(scheduled_items, &%{type: :item, data: &1, time_value: &1.time_value}) ++
+                Enum.map(filtered_scheduled, &%{type: :item, data: &1, time_value: &1.time_value}) ++
                 Enum.map(flight_events, &%{type: :flight, data: &1, time_value: &1.time_value}),
                 & &1.time_value
               ) %>
