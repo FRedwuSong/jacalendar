@@ -303,7 +303,9 @@ defmodule JacalendarWeb.ScheduleLive do
   defp filter_flight_overlaps(scheduled_items, flight_events) do
     Enum.reject(scheduled_items, fn item ->
       Enum.any?(flight_events, fn fe ->
-        Time.compare(item.time_value, fe.time_value) != :lt and
+        buffer_start = Time.add(fe.time_value, -30 * 60)
+
+        Time.compare(item.time_value, buffer_start) != :lt and
           Time.compare(item.time_value, fe.end_time) != :gt
       end)
     end)
