@@ -522,7 +522,6 @@ defmodule JacalendarWeb.ScheduleLive do
                 ]}
               >
                 <span class="text-xs font-mono">{Calendar.strftime(day.date, "%m/%d")}</span>
-                <span class="text-xs">{day.title}</span>
               </button>
             </div>
 
