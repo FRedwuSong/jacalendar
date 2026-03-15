@@ -526,7 +526,7 @@ defmodule JacalendarWeb.ScheduleLive do
             <% flights = meta["flights"] || [] %>
             <% hotel = meta["hotel"] %>
             <div
-              :if={(flights != [] && !@selected_day) || hotel}
+              :if={!@selected_day && (flights != [] || hotel)}
               id="metadata-section"
               class="grid grid-cols-1 sm:grid-cols-2 gap-3"
             >
