@@ -20,6 +20,7 @@ defmodule JacalendarWeb.ScheduleLive do
       |> assign(:editing, nil)
       |> assign(:parse_error, nil)
       |> assign(:selected_day, nil)
+      |> assign(:show_metadata, true)
 
     case params do
       %{"id" => id} ->
@@ -83,6 +84,10 @@ defmodule JacalendarWeb.ScheduleLive do
     itinerary = Itineraries.get_itinerary!(id)
     {:ok, _} = Itineraries.delete_itinerary(itinerary)
     {:noreply, push_navigate(socket, to: "/")}
+  end
+
+  def handle_event("toggle_metadata", _, socket) do
+    {:noreply, assign(socket, :show_metadata, !socket.assigns.show_metadata)}
   end
 
   def handle_event("select_day", %{"day-id" => "all"}, socket) do
@@ -525,9 +530,16 @@ defmodule JacalendarWeb.ScheduleLive do
             <% meta = @itinerary.metadata || %{} %>
             <% flights = meta["flights"] || [] %>
             <% hotel = meta["hotel"] %>
+            <div :if={!@selected_day && (flights != [] || hotel)} id="metadata-section">
+              <button
+                phx-click="toggle_metadata"
+                class="flex items-center gap-1 text-xs text-base-content/40 hover:text-base-content/60 transition-colors mb-2"
+              >
+                <.icon name={if @show_metadata, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"} class="size-4" />
+                {if @show_metadata, do: "隱藏旅行資訊", else: "顯示旅行資訊"}
+              </button>
             <div
-              :if={!@selected_day && (flights != [] || hotel)}
-              id="metadata-section"
+              :if={@show_metadata}
               class="grid grid-cols-1 sm:grid-cols-2 gap-3"
             >
               <div
@@ -588,6 +600,7 @@ defmodule JacalendarWeb.ScheduleLive do
                     <.icon name="hero-phone" class="size-3 inline" /> {hotel["phone"]}
                   </p>
                 </div>
+              </div>
               </div>
             </div>
 
