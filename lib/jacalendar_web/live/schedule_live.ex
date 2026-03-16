@@ -745,6 +745,26 @@ defmodule JacalendarWeb.ScheduleLive do
                       </div>
                     <% end %>
                   <% end %>
+
+                  <%!-- Current time indicator --%>
+                  <%= if @current_date && @current_time && day.date == @current_date do %>
+                    <% ct_row = (@current_time.hour - start_hour) * 2 + div(@current_time.minute, 30) + 1 %>
+                    <% ct_offset = rem(@current_time.minute, 30) / 30 * 100 %>
+                    <%= if ct_row >= 1 and ct_row <= total_rows do %>
+                      <div
+                        class="text-xs text-error font-mono font-bold text-right pr-2"
+                        style={"grid-row: #{ct_row}; grid-column: 1; align-self: start; margin-top: #{ct_offset}%;"}
+                      >
+                        {Calendar.strftime(@current_time, "%H:%M")}
+                      </div>
+                      <div
+                        class="border-t-2 border-error relative"
+                        style={"grid-row: #{ct_row}; grid-column: 2; align-self: start; margin-top: #{ct_offset}%; z-index: 20;"}
+                      >
+                        <div class="absolute -left-1.5 -top-1.5 size-3 rounded-full bg-error" />
+                      </div>
+                    <% end %>
+                  <% end %>
                 </div>
               <% end %>
             <% else %>
