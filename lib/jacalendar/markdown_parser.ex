@@ -14,7 +14,7 @@ defmodule Jacalendar.MarkdownParser do
     "晚餐" => :evening
   }
 
-  @day_header_regex ~r/^### Day \d+:\s*(\d{4})\/(\d{2})\/(\d{2})\s*\((.+?)\)\s*(?:-\s*(.+))?$/
+  @day_header_regex ~r/^\s*### Day \d+:\s*(\d{4})\/(\d{2})\/(\d{2})\s*\((.+?)\)\s*(?:-\s*(.+))?$/
   @exact_time_regex ~r/^\*\s+\*\*(\d{1,2}:\d{2})(?:-\d{1,2}:\d{2})?\s*(?:\([^)]*\))?\*\*:\s*(.+)/
   @bold_label_regex ~r/^\*\s+(?:🏔️\s+)?\*\*(.+?)\*\*:\s*(.*)/
   @sub_item_regex ~r/^\s+\*\s+(.+)/
@@ -307,9 +307,9 @@ defmodule Jacalendar.MarkdownParser do
         lines
         |> Enum.drop(start_idx + 1)
         |> Enum.take_while(fn line ->
-          not (Regex.match?(~r/^### Day \d+:/, line) or
-                 String.starts_with?(line, "---") or
-                 String.starts_with?(line, "## "))
+          not (Regex.match?(~r/^\s*### Day \d+:/, line) or
+                 String.starts_with?(String.trim_leading(line), "---") or
+                 String.starts_with?(String.trim_leading(line), "## "))
         end)
 
       items = parse_items(day_lines)
@@ -323,8 +323,35 @@ defmodule Jacalendar.MarkdownParser do
       trimmed = String.trim(line)
       trimmed == "" or String.starts_with?(trimmed, ">") or String.starts_with?(trimmed, "---")
     end)
+    |> normalize_indentation()
     |> group_items()
     |> Enum.map(&build_item/1)
+  end
+
+  # Strip common leading whitespace so that top-level `* ` items
+  # are recognized even when the whole day block is indented by 1-2 spaces.
+  defp normalize_indentation(lines) do
+    min_indent =
+      lines
+      |> Enum.filter(&Regex.match?(~r/^\s*\*\s+/, &1))
+      |> Enum.map(fn line ->
+        case Regex.run(~r/^(\s*)\*/, line) do
+          [_, spaces] -> String.length(spaces)
+          _ -> 0
+        end
+      end)
+      |> Enum.min(fn -> 0 end)
+
+    if min_indent > 0 do
+      Enum.map(lines, fn line ->
+        case line do
+          <<_::binary-size(min_indent), rest::binary>> when byte_size(line) > min_indent -> rest
+          _ -> line
+        end
+      end)
+    else
+      lines
+    end
   end
 
   defp group_items(lines) do
@@ -368,6 +395,8 @@ defmodule Jacalendar.MarkdownParser do
   defp build_item([]), do: %Item{time: :pending, description: "", sub_items: []}
 
   defp parse_item_line(line) do
+    line = String.trim_leading(line)
+
     cond do
       match = Regex.run(@exact_time_regex, line) ->
         [_, time_str, desc] = match
