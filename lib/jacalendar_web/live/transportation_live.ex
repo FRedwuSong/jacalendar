@@ -30,6 +30,16 @@ defmodule JacalendarWeb.TransportationLive do
   end
 
   @impl true
+  def handle_event("import_path", %{"path" => path}, socket) do
+    path = String.trim(path)
+
+    case File.read(path) do
+      {:ok, content} -> do_import(socket, content)
+      {:error, reason} -> {:noreply, assign(socket, :import_error, "無法讀取檔案: #{inspect(reason)}")}
+    end
+  end
+
+  @impl true
   def handle_event("import", _params, socket) do
     # Read uploaded file content
     markdown =
@@ -223,25 +233,39 @@ defmodule JacalendarWeb.TransportationLive do
 
   defp import_form(assigns) do
     ~H"""
-    <form phx-submit="import" phx-change="validate" class="space-y-4">
-      <div>
-        <label class="label text-sm font-medium">上傳交通 Markdown 檔案</label>
-        <div class="flex items-center gap-3">
-          <.live_file_input upload={@upload} class="file-input file-input-bordered file-input-sm w-full" />
+    <div class="space-y-4">
+      <.form for={%{}} phx-submit="import_path" class="flex gap-2">
+        <input
+          type="text"
+          name="path"
+          class="input input-bordered flex-1 font-mono text-sm"
+          placeholder="/Users/you/trip/transportation.md"
+          required
+        />
+        <button type="submit" class="btn btn-primary btn-sm">
+          <.icon name="hero-folder-open" class="size-4" /> 載入
+        </button>
+      </.form>
+      <div class="divider text-base-content/40 text-xs">或上傳檔案</div>
+      <form phx-submit="import" phx-change="validate" class="space-y-4">
+        <div>
+          <div class="flex items-center gap-3">
+            <.live_file_input upload={@upload} class="file-input file-input-bordered file-input-sm w-full" />
+          </div>
+          <div :for={entry <- @upload.entries} class="text-sm text-base-content/60 mt-2">
+            {entry.client_name}
+            <span :if={entry.progress > 0} class="text-xs">({entry.progress}%)</span>
+          </div>
+          <div :for={err <- upload_errors(@upload)} class="text-error text-sm mt-1">
+            {upload_error_message(err)}
+          </div>
         </div>
-        <div :for={entry <- @upload.entries} class="text-sm text-base-content/60 mt-2">
-          {entry.client_name}
-          <span :if={entry.progress > 0} class="text-xs">({entry.progress}%)</span>
-        </div>
-        <div :for={err <- upload_errors(@upload)} class="text-error text-sm mt-1">
-          {upload_error_message(err)}
-        </div>
-      </div>
-      <p :if={@import_error} class="text-error text-sm">{@import_error}</p>
-      <button type="submit" class="btn btn-primary btn-sm" disabled={@upload.entries == []}>
-        匯入
-      </button>
-    </form>
+        <p :if={@import_error} class="text-error text-sm">{@import_error}</p>
+        <button type="submit" class="btn btn-primary btn-sm" disabled={@upload.entries == []}>
+          匯入
+        </button>
+      </form>
+    </div>
     """
   end
 
@@ -257,6 +281,7 @@ defmodule JacalendarWeb.TransportationLive do
 
   defp section_emoji("tools"), do: "📱"
   defp section_emoji("hotel_transport"), do: "🏨"
+  defp section_emoji("airport"), do: "✈️"
   defp section_emoji("daily_task"), do: "☕"
   defp section_emoji("tips"), do: "💡"
   defp section_emoji(_), do: ""
