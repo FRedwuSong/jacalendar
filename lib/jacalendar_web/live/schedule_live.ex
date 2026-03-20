@@ -340,6 +340,40 @@ defmodule JacalendarWeb.ScheduleLive do
     row
   end
 
+  defp item_grid_span(current, next_entry) do
+    if next_entry do
+      start_min = current.time_value.hour * 60 + current.time_value.minute
+      end_min = next_entry.time_value.hour * 60 + next_entry.time_value.minute
+      diff = end_min - start_min
+      slots = div(diff, 30) + if(rem(diff, 30) > 0, do: 1, else: 0)
+      max(slots, 2)
+    else
+      # Last item: size based on content
+      sub_count = length(current.data.sub_items || [])
+      max(2, 2 + ceil(sub_count * 2 / 3))
+    end
+  end
+
+  defp sub_item_offset_rem(text, item_time) do
+    case Regex.run(~r/^(\d{1,2}):(\d{2})/, String.trim(text)) do
+      [_, h, m] ->
+        item_min = item_time.hour * 60 + item_time.minute
+        sub_min = String.to_integer(h) * 60 + String.to_integer(m)
+        diff = sub_min - item_min
+
+        if diff > 0 do
+          # 1.75rem per 30 min, offset by 1.5rem for title row
+          1.5 + diff * 1.75 / 30
+        else
+          # Time is at or before card start — render in normal flow
+          nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
   defp sun_times_for_date(metadata, date) do
     sun_times = (metadata || %{})["sun_times"] || []
     Enum.find(sun_times, fn st ->
@@ -699,7 +733,8 @@ defmodule JacalendarWeb.ScheduleLive do
                   <% end %>
 
                   <%!-- Timeline items (scheduled + flights) --%>
-                  <%= for entry <- all_timeline_items do %>
+                  <%= for {entry, idx} <- Enum.with_index(all_timeline_items) do %>
+                    <% next_entry = Enum.at(all_timeline_items, idx + 1) %>
                     <%= if entry.type == :flight do %>
                       <% flight_span = flight_grid_span(entry.data) %>
                       <div
@@ -718,16 +753,17 @@ defmodule JacalendarWeb.ScheduleLive do
                       </div>
                     <% else %>
                       <% item = entry.data %>
+                      <% span = item_grid_span(entry, next_entry) %>
                       <div
                         id={"timeline-item-#{item.id}"}
                         class={[
-                          "rounded-lg bg-primary/10 border-l-3 border-primary px-3 text-sm transition-colors",
+                          "rounded-lg bg-primary/10 border-l-3 border-primary px-3 text-sm transition-colors relative",
                           if(@editing == {:description, item.id},
-                            do: "relative z-10 py-2 bg-base-300 shadow-lg",
+                            do: "z-10 py-2 bg-base-300 shadow-lg",
                             else: "py-1.5 hover:bg-primary/20"
                           )
                         ]}
-                        style={"grid-row: #{item_grid_row(entry, start_hour)} / span 2; grid-column: 2;"}
+                        style={"grid-row: #{item_grid_row(entry, start_hour)} / span #{span}; grid-column: 2;"}
                       >
                         <span class="font-mono text-xs text-primary font-semibold">
                           {Calendar.strftime(item.time_value, "%H:%M")}
@@ -741,6 +777,21 @@ defmodule JacalendarWeb.ScheduleLive do
                           <span class="ml-2 cursor-pointer hover:text-primary" phx-click="edit_description" phx-value-item-id={item.id}>
                             {item.description}
                           </span>
+                        <% end %>
+                        <%= for sub <- (item.sub_items || []) do %>
+                          <% offset = sub_item_offset_rem(sub, item.time_value) %>
+                          <%= if offset do %>
+                            <p
+                              class="absolute left-3 right-3 text-xs text-base-content/60 pl-3 border-l-2 border-base-300"
+                              style={"top: #{offset}rem;"}
+                            >
+                              {sub}
+                            </p>
+                          <% else %>
+                            <p class="text-xs text-base-content/60 pl-3 border-l-2 border-base-300">
+                              {sub}
+                            </p>
+                          <% end %>
                         <% end %>
                       </div>
                     <% end %>
