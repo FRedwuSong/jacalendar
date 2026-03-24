@@ -342,6 +342,7 @@ defmodule JacalendarWeb.ScheduleLive do
 
   defp item_grid_span(current, next_entry) do
     if next_entry do
+      # Strictly use time-based span to prevent overlap with next item
       start_min = current.time_value.hour * 60 + current.time_value.minute
       end_min = next_entry.time_value.hour * 60 + next_entry.time_value.minute
       diff = end_min - start_min
@@ -757,10 +758,10 @@ defmodule JacalendarWeb.ScheduleLive do
                       <div
                         id={"timeline-item-#{item.id}"}
                         class={[
-                          "rounded-lg bg-primary/10 border-l-3 border-primary px-3 text-sm transition-colors relative",
+                          "rounded-lg border-l-3 border-primary px-3 text-sm transition-all relative group",
                           if(@editing == {:description, item.id},
-                            do: "z-10 py-2 bg-base-300 shadow-lg",
-                            else: "py-1.5 hover:bg-primary/20"
+                            do: "z-20 py-2 bg-base-300 shadow-lg overflow-visible",
+                            else: "py-1.5 bg-primary/10 overflow-hidden hover:overflow-visible hover:z-10 hover:bg-base-200 hover:shadow-lg hover:rounded-lg"
                           )
                         ]}
                         style={"grid-row: #{item_grid_row(entry, start_hour)} / span #{span}; grid-column: 2;"}
