@@ -715,22 +715,24 @@ defmodule JacalendarWeb.ScheduleLive do
               <%!-- Timeline grid --%>
               <%= if all_timeline_items != [] do %>
                 <% {start_hour, end_hour} = timeline_range(all_timeline_items) %>
-                <% total_rows = (end_hour - start_hour) * @rows_per_hour %>
+                <% rows_per_hour = 6 %>
+                <% row_height_rem = 0.583 %>
+                <% total_rows = (end_hour - start_hour) * rows_per_hour %>
                 <div
                   class="grid relative"
-                  style={"grid-template-columns: 3.5rem 1fr; grid-template-rows: repeat(#{total_rows}, #{@row_height_rem}rem);"}
+                  style={"grid-template-columns: 3.5rem 1fr; grid-template-rows: repeat(#{total_rows}, #{row_height_rem}rem);"}
                 >
                   <%!-- Hour labels and grid lines --%>
                   <%= for h <- start_hour..(end_hour - 1) do %>
                     <div
                       class="text-xs text-base-content/40 font-mono text-right pr-3 leading-none"
-                      style={"grid-row: #{(h - start_hour) * @rows_per_hour + 1}; grid-column: 1;"}
+                      style={"grid-row: #{(h - start_hour) * rows_per_hour + 1}; grid-column: 1;"}
                     >
                       {format_hour(h)}
                     </div>
                     <div
                       class="border-t border-base-300/50"
-                      style={"grid-row: #{(h - start_hour) * @rows_per_hour + 1}; grid-column: 2;"}
+                      style={"grid-row: #{(h - start_hour) * rows_per_hour + 1}; grid-column: 2;"}
                     />
                   <% end %>
 
@@ -801,8 +803,8 @@ defmodule JacalendarWeb.ScheduleLive do
 
                   <%!-- Current time indicator --%>
                   <%= if @current_date && @current_time && day.date == @current_date do %>
-                    <% ct_row = (@current_time.hour - start_hour) * @rows_per_hour + div(@current_time.minute, @minutes_per_row) + 1 %>
-                    <% ct_offset = rem(@current_time.minute, @minutes_per_row) / @minutes_per_row * 100 %>
+                    <% ct_row = (@current_time.hour - start_hour) * rows_per_hour + div(@current_time.minute, 10) + 1 %>
+                    <% ct_offset = rem(@current_time.minute, 10) / 10 * 100 %>
                     <%= if ct_row >= 1 and ct_row <= total_rows do %>
                       <div
                         class="text-xs text-error font-mono font-bold text-right pr-2"
