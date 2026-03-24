@@ -1,0 +1,23 @@
+{
+  "skill_name": "trip-weather",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "東京天氣",
+      "expected_output": "Should fetch weather for the itinerary date range (2026/04/16-04/21), display daily forecast with temperature, precipitation, wind. Include clothing suggestions and impact on outdoor activities from the itinerary.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "4/18 會下雨嗎？需要改行程嗎？",
+      "expected_output": "Should check weather for April 18 specifically, report rain probability, and cross-reference with Day 3 itinerary items to advise whether outdoor activities need adjustment.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "幫我把天氣資訊加到行程頁面上，顯示在日出日落旁邊",
+      "expected_output": "Should modify schedule_live.ex to add weather display next to sunrise/sunset in day headers. Add weather_for_date helper, weather_icon helper, and weather span in the template.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "skill_name": "tokyo-exhibitions",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "幫我找東京 04/16-04/21 有什麼展覽",
+      "expected_output": "A bilingual markdown file listing exhibitions near Tokyo Station during April 16-21, grouped by area",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "下週去東京，想看美術館和博物館，有什麼推薦？",
+      "expected_output": "A bilingual markdown file listing museum and gallery exhibitions, with practical tips",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "東京展覽 4月中",
+      "expected_output": "A bilingual markdown file listing exhibitions in mid-April near Tokyo Station",
+      "files": []
+    }
+  ]
+}
