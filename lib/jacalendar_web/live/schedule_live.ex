@@ -325,33 +325,35 @@ defmodule JacalendarWeb.ScheduleLive do
     {min_h, max_h}
   end
 
+  # Timeline grid: 10 minutes per row, 6 rows per hour
+  @minutes_per_row 10
+  @rows_per_hour 6
+  @row_height_rem 0.583
+
   defp flight_grid_span(flight_event) do
     start_minutes = flight_event.time_value.hour * 60 + flight_event.time_value.minute
     end_minutes = flight_event.end_time.hour * 60 + flight_event.end_time.minute
     duration_minutes = end_minutes - start_minutes
-    # Each row = 30 minutes, minimum 2 rows
-    max(div(duration_minutes, 30) + if(rem(duration_minutes, 30) > 0, do: 1, else: 0), 2)
+    rows = div(duration_minutes, @minutes_per_row) + if(rem(duration_minutes, @minutes_per_row) > 0, do: 1, else: 0)
+    max(rows, 3)
   end
 
   defp item_grid_row(item, start_hour) do
     h = item.time_value.hour
     m = item.time_value.minute
-    row = (h - start_hour) * 2 + if(m >= 30, do: 2, else: 1)
-    row
+    (h - start_hour) * @rows_per_hour + div(m, @minutes_per_row) + 1
   end
 
-  defp item_grid_span(current, next_entry) do
+  defp item_grid_span(current, next_entry, start_hour) do
     if next_entry do
-      # Strictly use time-based span to prevent overlap with next item
-      start_min = current.time_value.hour * 60 + current.time_value.minute
-      end_min = next_entry.time_value.hour * 60 + next_entry.time_value.minute
-      diff = end_min - start_min
-      slots = div(diff, 30) + if(rem(diff, 30) > 0, do: 1, else: 0)
-      max(slots, 2)
+      # Use grid row difference to guarantee no overlap
+      current_row = item_grid_row(current, start_hour)
+      next_row = item_grid_row(next_entry, start_hour)
+      max(next_row - current_row, 1)
     else
       # Last item: size based on content
       sub_count = length(current.data.sub_items || [])
-      max(2, 2 + ceil(sub_count * 2 / 3))
+      max(6, 6 + sub_count * 2)
     end
   end
 
@@ -363,10 +365,9 @@ defmodule JacalendarWeb.ScheduleLive do
         diff = sub_min - item_min
 
         if diff > 0 do
-          # 1.75rem per 30 min, offset by 1.5rem for title row
-          1.5 + diff * 1.75 / 30
+          # @row_height_rem per 10 min, offset by 1.5rem for title row
+          1.5 + diff * @row_height_rem / @minutes_per_row
         else
-          # Time is at or before card start — render in normal flow
           nil
         end
 
@@ -714,22 +715,22 @@ defmodule JacalendarWeb.ScheduleLive do
               <%!-- Timeline grid --%>
               <%= if all_timeline_items != [] do %>
                 <% {start_hour, end_hour} = timeline_range(all_timeline_items) %>
-                <% total_rows = (end_hour - start_hour) * 2 %>
+                <% total_rows = (end_hour - start_hour) * @rows_per_hour %>
                 <div
                   class="grid relative"
-                  style={"grid-template-columns: 3.5rem 1fr; grid-template-rows: repeat(#{total_rows}, 1.75rem);"}
+                  style={"grid-template-columns: 3.5rem 1fr; grid-template-rows: repeat(#{total_rows}, #{@row_height_rem}rem);"}
                 >
                   <%!-- Hour labels and grid lines --%>
                   <%= for h <- start_hour..(end_hour - 1) do %>
                     <div
                       class="text-xs text-base-content/40 font-mono text-right pr-3 leading-none"
-                      style={"grid-row: #{(h - start_hour) * 2 + 1}; grid-column: 1;"}
+                      style={"grid-row: #{(h - start_hour) * @rows_per_hour + 1}; grid-column: 1;"}
                     >
                       {format_hour(h)}
                     </div>
                     <div
                       class="border-t border-base-300/50"
-                      style={"grid-row: #{(h - start_hour) * 2 + 1}; grid-column: 2;"}
+                      style={"grid-row: #{(h - start_hour) * @rows_per_hour + 1}; grid-column: 2;"}
                     />
                   <% end %>
 
@@ -754,7 +755,7 @@ defmodule JacalendarWeb.ScheduleLive do
                       </div>
                     <% else %>
                       <% item = entry.data %>
-                      <% span = item_grid_span(entry, next_entry) %>
+                      <% span = item_grid_span(entry, next_entry, start_hour) %>
                       <div
                         id={"timeline-item-#{item.id}"}
                         class={[
@@ -800,8 +801,8 @@ defmodule JacalendarWeb.ScheduleLive do
 
                   <%!-- Current time indicator --%>
                   <%= if @current_date && @current_time && day.date == @current_date do %>
-                    <% ct_row = (@current_time.hour - start_hour) * 2 + div(@current_time.minute, 30) + 1 %>
-                    <% ct_offset = rem(@current_time.minute, 30) / 30 * 100 %>
+                    <% ct_row = (@current_time.hour - start_hour) * @rows_per_hour + div(@current_time.minute, @minutes_per_row) + 1 %>
+                    <% ct_offset = rem(@current_time.minute, @minutes_per_row) / @minutes_per_row * 100 %>
                     <%= if ct_row >= 1 and ct_row <= total_rows do %>
                       <div
                         class="text-xs text-error font-mono font-bold text-right pr-2"
