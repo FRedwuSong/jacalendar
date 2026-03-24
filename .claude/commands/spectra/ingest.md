@@ -1,14 +1,15 @@
 ---
 name: Spectra: Ingest
-description: Update an existing OpenSpec change from a plan file or conversation context
+description: Update an existing Spectra change from a plan file or conversation context
 category: Workflow
 tags: ["workflow", "import", "plan", "claude"]
 ---
 
 <!-- SPECTRA:START v1.0.1 -->
-Update an existing OpenSpec change — from a Claude Code plan file or conversation context.
 
-**Claude Code only.** This skill can read plan files from `~/.claude/plans/` or use conversation context to update artifacts.
+Update an existing Spectra change — from a plan file or conversation context.
+
+**Plan file support** is available when the tool has a plan directory (`~/.claude/plans/`). Otherwise, use conversation context to update artifacts.
 
 **Prerequisites**: This skill requires the `spectra` CLI. If any `spectra` command fails with "command not found" or similar, report the error and STOP.
 
@@ -190,7 +191,7 @@ Update an existing OpenSpec change — from a Claude Code plan file or conversat
 **Guardrails**
 
 - **NEVER** modify the original plan file in `~/.claude/plans/`
-- **NEVER** write application code — this skill only creates/updates OpenSpec artifacts
+- **NEVER** write application code — this skill only creates/updates Spectra artifacts
 - **NEVER** create new changes — ingest only updates existing changes. If no active change exists, direct user to `/spectra:propose`
 - When updating existing changes, **preserve all completed tasks** (`[x]`) — never revert progress
 - If the source content is too brief to fill all artifact sections, use the **AskUserQuestion tool** to get more details rather than inventing content
@@ -198,4 +199,5 @@ Update an existing OpenSpec change — from a Claude Code plan file or conversat
 - Verify each artifact file exists after writing before proceeding to next
 - **NEVER** skip the artifact workflow to write code directly
 - If **AskUserQuestion tool** is not available, ask the same questions as plain text and wait for the user's response
+
 <!-- SPECTRA:END -->
