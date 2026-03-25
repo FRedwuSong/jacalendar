@@ -716,7 +716,7 @@ defmodule JacalendarWeb.ScheduleLive do
               <%= if all_timeline_items != [] do %>
                 <% {start_hour, end_hour} = timeline_range(all_timeline_items) %>
                 <% rows_per_hour = 6 %>
-                <% row_height_rem = 0.583 %>
+                <% row_height_rem = 1.0 %>
                 <% total_rows = (end_hour - start_hour) * rows_per_hour %>
                 <div
                   class="grid relative"
