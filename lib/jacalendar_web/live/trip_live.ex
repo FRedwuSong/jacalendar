@@ -181,7 +181,7 @@ defmodule JacalendarWeb.TripLive do
                       <%!-- Edit mode --%>
                       <div
                         class="absolute inset-x-1 rounded-lg bg-primary/25 border-l-4 border-primary px-2 py-1 overflow-y-auto z-20"
-                        style={"top: calc((#{block.row_start} - 1) * 1.5rem); min-height: calc((#{block.row_end} - #{block.row_start}) * 1.5rem);"}
+                        style={"top: calc((#{block.row_start} - 1) * 1.5rem); height: calc((#{block.row_end} - #{block.row_start}) * 1.5rem);"}
                       >
                         <.form for={%{}} phx-submit="save_item" phx-value-item_id={block.item.id} class="space-y-1">
                           <div class="flex items-center gap-2">
