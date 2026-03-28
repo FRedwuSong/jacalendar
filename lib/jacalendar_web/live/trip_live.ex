@@ -12,7 +12,7 @@ defmodule JacalendarWeb.TripLive do
     itinerary = Itineraries.get_itinerary!(id)
     total_days = length(itinerary.days)
 
-    socket = assign(socket, :editing, nil)
+    socket = socket |> assign(:editing, nil) |> assign(:confirm_delete, nil)
 
     case parse_day_param(day_param, total_days) do
       {:ok, :all} ->
@@ -191,14 +191,25 @@ defmodule JacalendarWeb.TripLive do
                               value={format_time(block.item.time_value)}
                               class="input input-xs input-bordered w-24 bg-base-100"
                             />
-                            <button
-                              type="button"
-                              phx-click="delete_item"
-                              phx-value-item_id={block.item.id}
-                              class="btn btn-xs btn-error btn-outline"
-                            >
-                              ✕
-                            </button>
+                            <%= if @confirm_delete == block.item.id do %>
+                              <button
+                                type="button"
+                                phx-click="confirm_delete_item"
+                                phx-value-item_id={block.item.id}
+                                class="btn btn-xs btn-error"
+                              >
+                                確定刪除？
+                              </button>
+                            <% else %>
+                              <button
+                                type="button"
+                                phx-click="delete_item"
+                                phx-value-item_id={block.item.id}
+                                class="btn btn-xs btn-error btn-outline"
+                              >
+                                ✕
+                              </button>
+                            <% end %>
                           </div>
                           <textarea
                             name="description"
@@ -306,7 +317,7 @@ defmodule JacalendarWeb.TripLive do
 
   def handle_event("edit_item", %{"item_id" => item_id_str}, socket) do
     item_id = String.to_integer(item_id_str)
-    {:noreply, assign(socket, :editing, item_id)}
+    {:noreply, socket |> assign(:editing, item_id) |> assign(:confirm_delete, nil)}
   end
 
   def handle_event("save_item", %{"item_id" => item_id_str, "time" => time_str, "description" => description}, socket) do
@@ -327,17 +338,22 @@ defmodule JacalendarWeb.TripLive do
   end
 
   def handle_event("cancel_edit", _params, socket) do
-    {:noreply, assign(socket, :editing, nil)}
+    {:noreply, socket |> assign(:editing, nil) |> assign(:confirm_delete, nil)}
   end
 
   def handle_event("delete_item", %{"item_id" => item_id_str}, socket) do
+    {:noreply, assign(socket, :confirm_delete, String.to_integer(item_id_str))}
+  end
+
+  def handle_event("confirm_delete_item", %{"item_id" => item_id_str}, socket) do
     item = Itineraries.get_item!(String.to_integer(item_id_str))
     Itineraries.delete_item(item)
 
     {:noreply,
      socket
      |> reload_itinerary()
-     |> assign(:editing, nil)}
+     |> assign(:editing, nil)
+     |> assign(:confirm_delete, nil)}
   end
 
   def handle_event("keydown", %{"key" => "Escape"}, socket) do
