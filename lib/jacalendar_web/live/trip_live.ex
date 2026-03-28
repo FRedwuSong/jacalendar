@@ -88,6 +88,16 @@ defmodule JacalendarWeb.TripLive do
 
   defp format_time(%Time{} = t), do: Calendar.strftime(t, "%H:%M")
 
+  @color_options ["primary", "info", "success", "warning", "error"]
+
+  defp color_classes(nil), do: color_classes("primary")
+  defp color_classes("primary"), do: %{bg: "bg-primary/15", bg_edit: "bg-primary/25", border: "border-primary", text: "text-primary", hover: "hover:bg-primary/25", dot: "bg-primary", ring: "ring-primary"}
+  defp color_classes("info"), do: %{bg: "bg-info/15", bg_edit: "bg-info/25", border: "border-info", text: "text-info", hover: "hover:bg-info/25", dot: "bg-info", ring: "ring-info"}
+  defp color_classes("success"), do: %{bg: "bg-success/15", bg_edit: "bg-success/25", border: "border-success", text: "text-success", hover: "hover:bg-success/25", dot: "bg-success", ring: "ring-success"}
+  defp color_classes("warning"), do: %{bg: "bg-warning/15", bg_edit: "bg-warning/25", border: "border-warning", text: "text-warning", hover: "hover:bg-warning/25", dot: "bg-warning", ring: "ring-warning"}
+  defp color_classes("error"), do: %{bg: "bg-error/15", bg_edit: "bg-error/25", border: "border-error", text: "text-error", hover: "hover:bg-error/25", dot: "bg-error", ring: "ring-error"}
+  defp color_classes(_), do: color_classes("primary")
+
   defp render_markdown(text) do
     text
     |> Phoenix.HTML.html_escape()
@@ -125,6 +135,7 @@ defmodule JacalendarWeb.TripLive do
       assigns
       |> assign(:hours, hours())
       |> assign(:hour_start, @hour_start)
+      |> assign(:color_options, @color_options)
       |> assign(:rows_per_hour, @rows_per_hour)
       |> assign(:total_rows, (@hour_end - @hour_start) * @rows_per_hour)
 
@@ -198,7 +209,7 @@ defmodule JacalendarWeb.TripLive do
                     <%= if @editing == block.item.id do %>
                       <%!-- Edit mode --%>
                       <div
-                        class="absolute inset-x-1 rounded-lg bg-primary/25 border-l-4 border-primary px-2 py-1 overflow-y-auto z-20"
+                        class={"absolute inset-x-1 rounded-lg #{color_classes(block.item.color).bg_edit} border-l-4 #{color_classes(block.item.color).border} px-2 py-1 overflow-y-auto z-20"}
                         style={"top: calc((#{block.row_start} - 1) * 1.5rem); min-height: calc(#{max(block.row_end - block.row_start, @rows_per_hour * 3)} * 1.5rem);"}
                       >
                         <.form for={%{}} phx-submit="save_item" phx-value-item_id={block.item.id} class="space-y-1">
@@ -236,6 +247,20 @@ defmodule JacalendarWeb.TripLive do
                               </button>
                             <% end %>
                           </div>
+                          <div class="flex items-center gap-1.5">
+                            <%= for c <- @color_options do %>
+                              <label class="cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="color"
+                                  value={c}
+                                  checked={c == (block.item.color || "primary")}
+                                  class="hidden peer"
+                                />
+                                <div class={"w-5 h-5 rounded-full #{color_classes(c).dot} peer-checked:ring-2 peer-checked:ring-offset-2 peer-checked:#{color_classes(c).ring} ring-offset-base-100"}></div>
+                              </label>
+                            <% end %>
+                          </div>
                           <input
                             type="text"
                             name="description"
@@ -261,13 +286,13 @@ defmodule JacalendarWeb.TripLive do
                     <% else %>
                       <%!-- Display mode --%>
                       <div
-                        class="absolute inset-x-1 rounded-lg bg-primary/15 border-l-4 border-primary px-2 py-1 overflow-y-auto cursor-pointer hover:bg-primary/25 transition-colors z-10"
+                        class={"absolute inset-x-1 rounded-lg #{color_classes(block.item.color).bg} border-l-4 #{color_classes(block.item.color).border} px-2 py-1 overflow-y-auto cursor-pointer #{color_classes(block.item.color).hover} transition-colors z-10"}
                         style={"top: calc((#{block.row_start} - 1) * 1.5rem); height: calc((#{block.row_end} - #{block.row_start}) * 1.5rem);"}
                         phx-click="edit_item"
                         phx-value-item_id={block.item.id}
                       >
                         <div class="flex items-baseline gap-2">
-                          <span class="text-xs font-semibold text-primary shrink-0">
+                          <span class={"text-xs font-semibold #{color_classes(block.item.color).text} shrink-0"}>
                             <%= format_time(block.item.time_value) %>
                           </span>
                           <span class="text-sm font-bold leading-tight">
@@ -380,9 +405,17 @@ defmodule JacalendarWeb.TripLive do
       |> Enum.map(&String.trim/1)
       |> Enum.reject(&(&1 == ""))
 
+    color =
+      case params["color"] do
+        "primary" -> nil
+        c when c in ["info", "success", "warning", "error"] -> c
+        _ -> nil
+      end
+
     Itineraries.update_item(item, %{
       time_value: time_value,
       end_time: end_time,
+      color: color,
       description: params["description"] || "",
       sub_items: sub_items
     })
