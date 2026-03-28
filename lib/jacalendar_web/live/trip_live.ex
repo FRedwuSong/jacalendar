@@ -112,6 +112,7 @@ defmodule JacalendarWeb.TripLive do
               <%= format_column_header(day) %>
             </.link>
           <% end %>
+          <button phx-click="add_day" class="btn btn-sm btn-ghost text-primary">+</button>
         </div>
       </div>
 
@@ -215,5 +216,16 @@ defmodule JacalendarWeb.TripLive do
       <% end %>
     </div>
     """
+  end
+
+  @impl true
+  def handle_event("add_day", _params, socket) do
+    itinerary = socket.assigns.itinerary
+    {:ok, day} = Itineraries.create_day(itinerary)
+    new_day_number = day.position + 1
+
+    {:noreply,
+     socket
+     |> push_navigate(to: ~p"/trip/#{itinerary.id}/#{new_day_number}")}
   end
 end

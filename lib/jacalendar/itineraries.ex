@@ -147,6 +147,45 @@ defmodule Jacalendar.Itineraries do
     end)
   end
 
+  def create_day(%Itinerary{} = itinerary) do
+    itinerary = Repo.preload(itinerary, :days)
+
+    {new_date, new_position} =
+      case itinerary.days do
+        [] -> {itinerary.date_range_start, 0}
+        days ->
+          max_position = days |> Enum.map(& &1.position) |> Enum.max()
+          {Date.add(itinerary.date_range_end, 1), max_position + 1}
+      end
+
+    weekday = weekday_from_date(new_date)
+
+    Repo.transaction(fn ->
+      {:ok, day} =
+        %Day{}
+        |> Day.changeset(%{
+          date: new_date,
+          weekday: weekday,
+          position: new_position,
+          itinerary_id: itinerary.id
+        })
+        |> Repo.insert()
+
+      {:ok, _} =
+        itinerary
+        |> Itinerary.changeset(%{date_range_end: new_date})
+        |> Repo.update()
+
+      day
+    end)
+  end
+
+  @weekday_labels %{1 => "一", 2 => "二", 3 => "三", 4 => "四", 5 => "五", 6 => "六", 7 => "日"}
+
+  def weekday_from_date(%Date{} = date) do
+    Map.fetch!(@weekday_labels, Date.day_of_week(date))
+  end
+
   # Time serialization
 
   defp serialize_time({:exact, %Time{} = t}), do: {"exact", t}
