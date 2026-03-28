@@ -68,16 +68,34 @@ defmodule JacalendarWeb.TripLive do
     |> Enum.map(fn
       [current, next] ->
         row_start = time_to_row(current.time_value)
-        row_end = time_to_row(next.time_value)
-        %{item: current, row_start: row_start, row_end: max(row_end, row_start + @rows_per_hour)}
+        row_end = item_row_end(current, time_to_row(next.time_value), row_start)
+        %{item: current, row_start: row_start, row_end: row_end}
 
       [current] ->
         row_start = time_to_row(current.time_value)
-        %{item: current, row_start: row_start, row_end: row_start + @rows_per_hour}
+        row_end = item_row_end(current, nil, row_start)
+        %{item: current, row_start: row_start, row_end: row_end}
     end)
   end
 
+  defp item_row_end(item, next_row, row_start) do
+    cond do
+      item.end_time -> max(time_to_row(item.end_time), row_start + @rows_per_hour)
+      next_row -> max(next_row, row_start + @rows_per_hour)
+      true -> row_start + @rows_per_hour
+    end
+  end
+
   defp format_time(%Time{} = t), do: Calendar.strftime(t, "%H:%M")
+
+  defp render_markdown(text) do
+    text
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+    |> String.replace(~r/\*\*(.+?)\*\*/, "<strong>\\1</strong>")
+    |> String.replace(~r/`(.+?)`/, "<code class=\"text-primary\">\\1</code>")
+    |> Phoenix.HTML.raw()
+  end
 
   defp format_column_header(day) do
     month = day.date.month
@@ -191,6 +209,13 @@ defmodule JacalendarWeb.TripLive do
                               value={format_time(block.item.time_value)}
                               class="input input-xs input-bordered w-24 bg-base-100"
                             />
+                            <span class="text-xs text-base-content/50">~</span>
+                            <input
+                              type="time"
+                              name="end_time"
+                              value={if block.item.end_time, do: format_time(block.item.end_time), else: ""}
+                              class="input input-xs input-bordered w-24 bg-base-100"
+                            />
                             <%= if @confirm_delete == block.item.id do %>
                               <button
                                 type="button"
@@ -211,13 +236,22 @@ defmodule JacalendarWeb.TripLive do
                               </button>
                             <% end %>
                           </div>
-                          <textarea
+                          <input
+                            type="text"
                             name="description"
-                            rows="2"
-                            class="textarea textarea-bordered textarea-xs w-full bg-base-100"
+                            value={block.item.description}
+                            placeholder="標題"
+                            class="input input-xs input-bordered w-full bg-base-100"
                             phx-hook="AutoFocus"
                             id={"edit-desc-#{block.item.id}"}
-                          ><%= block.item.description %></textarea>
+                          />
+                          <textarea
+                            name="sub_items"
+                            rows="4"
+                            placeholder="細項（每行一項）"
+                            class="textarea textarea-bordered textarea-xs w-full bg-base-100 font-mono"
+                            id={"edit-subs-#{block.item.id}"}
+                          ><%= Enum.join(block.item.sub_items || [], "\n") %></textarea>
                           <div class="flex gap-1">
                             <button type="submit" class="btn btn-xs btn-primary">Save</button>
                             <button type="button" phx-click="cancel_edit" class="btn btn-xs btn-ghost">Cancel</button>
@@ -237,7 +271,7 @@ defmodule JacalendarWeb.TripLive do
                             <%= format_time(block.item.time_value) %>
                           </span>
                           <span class="text-sm font-bold leading-tight">
-                            <%= block.item.description %>
+                            <%= render_markdown(block.item.description) %>
                           </span>
                         </div>
                         <%= if block.item.sub_items && block.item.sub_items != [] do %>
@@ -245,9 +279,9 @@ defmodule JacalendarWeb.TripLive do
                             <%= for sub <- block.item.sub_items do %>
                               <div class="pl-2">
                                 <%= if String.starts_with?(sub, "🖊️") do %>
-                                  <span class="text-base-content/50 italic">✏ <%= String.trim_leading(sub, "🖊️ ") %></span>
+                                  <span class="text-base-content/50 italic">✏ <%= render_markdown(String.trim_leading(sub, "🖊️ ")) %></span>
                                 <% else %>
-                                  <%= sub %>
+                                  <%= render_markdown(sub) %>
                                 <% end %>
                               </div>
                             <% end %>
@@ -320,16 +354,38 @@ defmodule JacalendarWeb.TripLive do
     {:noreply, socket |> assign(:editing, item_id) |> assign(:confirm_delete, nil)}
   end
 
-  def handle_event("save_item", %{"item_id" => item_id_str, "time" => time_str, "description" => description}, socket) do
-    item = Itineraries.get_item!(String.to_integer(item_id_str))
+  def handle_event("save_item", params, socket) do
+    item = Itineraries.get_item!(String.to_integer(params["item_id"]))
 
     time_value =
-      case Time.from_iso8601(time_str <> ":00") do
+      case Time.from_iso8601(params["time"] <> ":00") do
         {:ok, t} -> t
         _ -> item.time_value
       end
 
-    Itineraries.update_item(item, %{time_value: time_value, description: description})
+    end_time =
+      case params["end_time"] do
+        "" -> nil
+        nil -> nil
+        end_str ->
+          case Time.from_iso8601(end_str <> ":00") do
+            {:ok, t} -> t
+            _ -> item.end_time
+          end
+      end
+
+    sub_items =
+      (params["sub_items"] || "")
+      |> String.split("\n")
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+
+    Itineraries.update_item(item, %{
+      time_value: time_value,
+      end_time: end_time,
+      description: params["description"] || "",
+      sub_items: sub_items
+    })
 
     {:noreply,
      socket

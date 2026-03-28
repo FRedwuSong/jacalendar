@@ -103,6 +103,12 @@ defmodule Jacalendar.Itineraries do
       |> Repo.one()
       |> Kernel.||(- 1)
 
+    default_end_time =
+      case Map.get(attrs, :time_value) do
+        %Time{} = t -> Time.add(t, 3600)
+        _ -> nil
+      end
+
     %Item{}
     |> Item.changeset(
       attrs
@@ -110,6 +116,7 @@ defmodule Jacalendar.Itineraries do
       |> Map.put(:position, max_position + 1)
       |> Map.put(:day_id, day_id)
       |> Map.put_new(:sub_items, [])
+      |> Map.put_new(:end_time, default_end_time)
     )
     |> Repo.insert()
   end
