@@ -28,6 +28,16 @@ import Sortable from "../vendor/sortable.min.js"
 
 const Hooks = {
   ...colocatedHooks,
+  TripCalendarScroll: {
+    mounted() {
+      // Scroll to ~08:00 position (1 hour from top, each row = 1.5rem)
+      const rowsPerHour = 4
+      const scrollRows = 1 * rowsPerHour // 1 hour offset from 07:00 = 08:00
+      const remInPx = parseFloat(getComputedStyle(document.documentElement).fontSize)
+      const headerHeight = 40 // h-10 = 2.5rem
+      this.el.scrollTop = headerHeight + (scrollRows * 1.5 * remInPx)
+    }
+  },
   Sortable: {
     mounted() {
       new Sortable(this.el, {
