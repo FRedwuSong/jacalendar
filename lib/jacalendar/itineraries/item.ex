@@ -8,6 +8,7 @@ defmodule Jacalendar.Itineraries.Item do
     field :description, :string, default: ""
     field :sub_items, {:array, :string}, default: []
     field :end_time, :time
+    field :color, :string
     field :position, :integer
 
     belongs_to :day, Jacalendar.Itineraries.Day
@@ -17,7 +18,7 @@ defmodule Jacalendar.Itineraries.Item do
 
   def changeset(item, attrs) do
     item
-    |> cast(attrs, [:time_type, :time_value, :end_time, :description, :sub_items, :position, :day_id])
+    |> cast(attrs, [:time_type, :time_value, :end_time, :color, :description, :sub_items, :position, :day_id])
     |> validate_required([:time_type, :position])
   end
 end

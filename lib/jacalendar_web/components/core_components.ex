@@ -529,6 +529,7 @@ defmodule JacalendarWeb.CoreComponents do
 
   defp tab_items(id) do
     [
+      {:home, "首頁", "/"},
       {:schedule, "行程表", "/itineraries/#{id}"},
       {:checklist, "清單", "/itineraries/#{id}/checklist"},
       {:transportation, "交通", "/itineraries/#{id}/transportation"},

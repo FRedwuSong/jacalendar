@@ -195,7 +195,7 @@ defmodule JacalendarWeb.ScheduleLive do
       {:ok, parsed} ->
         case Itineraries.create_itinerary(parsed) do
           {:ok, id} ->
-            {:noreply, push_navigate(socket, to: "/itineraries/#{id}")}
+            {:noreply, push_navigate(socket, to: "/trip/#{id}/all")}
 
           {:error, _} ->
             {:noreply, assign(socket, :parse_error, "儲存失敗")}
@@ -416,6 +416,9 @@ defmodule JacalendarWeb.ScheduleLive do
                     <p :if={it.date_range_start} class="text-xs text-base-content/60">
                       {it.date_range_start} ~ {it.date_range_end}
                     </p>
+                  </.link>
+                  <.link navigate={"/trip/#{it.id}/all"} class="btn btn-sm btn-primary">
+                    Trip
                   </.link>
                   <button
                     phx-click="delete_itinerary"
