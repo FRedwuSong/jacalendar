@@ -38,6 +38,14 @@ const Hooks = {
       this.el.scrollTop = headerHeight + (scrollRows * 1.5 * remInPx)
     }
   },
+  AutoFocus: {
+    mounted() {
+      this.el.focus()
+    },
+    updated() {
+      this.el.focus()
+    }
+  },
   Sortable: {
     mounted() {
       new Sortable(this.el, {

@@ -97,6 +97,27 @@ defmodule Jacalendar.Itineraries do
     Repo.delete(itinerary)
   end
 
+  def create_item(day_id, attrs) do
+    max_position =
+      from(i in Item, where: i.day_id == ^day_id, select: max(i.position))
+      |> Repo.one()
+      |> Kernel.||(- 1)
+
+    %Item{}
+    |> Item.changeset(
+      attrs
+      |> Map.put(:time_type, "exact")
+      |> Map.put(:position, max_position + 1)
+      |> Map.put(:day_id, day_id)
+      |> Map.put_new(:sub_items, [])
+    )
+    |> Repo.insert()
+  end
+
+  def delete_item(%Item{} = item) do
+    Repo.delete(item)
+  end
+
   def get_item!(id), do: Repo.get!(Item, id)
 
   def get_checklist_item!(id), do: Repo.get!(ChecklistItem, id)

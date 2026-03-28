@@ -12,6 +12,8 @@ defmodule JacalendarWeb.TripLive do
     itinerary = Itineraries.get_itinerary!(id)
     total_days = length(itinerary.days)
 
+    socket = socket |> assign(:editing, nil) |> assign(:confirm_delete, nil)
+
     case parse_day_param(day_param, total_days) do
       {:ok, :all} ->
         {:ok,
@@ -83,6 +85,22 @@ defmodule JacalendarWeb.TripLive do
     "#{month}/#{d} (#{day.weekday})"
   end
 
+  defp reload_itinerary(socket) do
+    itinerary = Itineraries.get_itinerary!(socket.assigns.itinerary.id)
+    days =
+      case socket.assigns.view_mode do
+        :week -> itinerary.days
+        :day ->
+          day = Enum.find(itinerary.days, &(&1.position == socket.assigns.selected_day - 1))
+          if day, do: [day], else: []
+      end
+
+    socket
+    |> assign(:itinerary, itinerary)
+    |> assign(:days, days)
+    |> assign(:total_days, length(itinerary.days))
+  end
+
   @impl true
   def render(assigns) do
     assigns =
@@ -93,7 +111,7 @@ defmodule JacalendarWeb.TripLive do
       |> assign(:total_rows, (@hour_end - @hour_start) * @rows_per_hour)
 
     ~H"""
-    <div class="flex flex-col h-[calc(100vh-4rem)]">
+    <div class="flex flex-col h-[calc(100vh-4rem)]" phx-window-keydown="keydown">
       <%!-- Header --%>
       <div class="flex items-center justify-between px-4 py-2 border-b border-base-300 bg-base-100 shrink-0">
         <h1 class="text-lg font-bold truncate"><%= @itinerary.title %></h1>
@@ -146,42 +164,97 @@ defmodule JacalendarWeb.TripLive do
                 </div>
                 <%!-- Events grid --%>
                 <div class="relative grid" style={"grid-template-rows: repeat(#{@total_rows}, 1.5rem)"}>
-                  <%!-- Hour grid lines --%>
+                  <%!-- Hour grid lines (clickable to add item) --%>
                   <%= for hour <- @hours do %>
                     <div
-                      class="border-t border-base-content/20"
+                      class="border-t border-base-content/20 cursor-pointer hover:bg-primary/5"
                       style={"grid-row: #{(hour - @hour_start) * @rows_per_hour + 1} / span #{@rows_per_hour}"}
+                      phx-click="add_item"
+                      phx-value-hour={hour}
+                      phx-value-day_id={day.id}
                     >
                     </div>
                   <% end %>
                   <%!-- Event blocks --%>
                   <%= for block <- event_blocks(day.items) do %>
-                    <div
-                      class="absolute inset-x-1 rounded-lg bg-primary/15 border-l-4 border-primary px-2 py-1 overflow-y-auto cursor-default hover:bg-primary/25 transition-colors"
-                      style={"top: calc((#{block.row_start} - 1) * 1.5rem); height: calc((#{block.row_end} - #{block.row_start}) * 1.5rem);"}
-                    >
-                      <div class="flex items-baseline gap-2">
-                        <span class="text-xs font-semibold text-primary shrink-0">
-                          <%= format_time(block.item.time_value) %>
-                        </span>
-                        <span class="text-sm font-bold leading-tight">
-                          <%= block.item.description %>
-                        </span>
+                    <%= if @editing == block.item.id do %>
+                      <%!-- Edit mode --%>
+                      <div
+                        class="absolute inset-x-1 rounded-lg bg-primary/25 border-l-4 border-primary px-2 py-1 overflow-y-auto z-20"
+                        style={"top: calc((#{block.row_start} - 1) * 1.5rem); min-height: calc(#{max(block.row_end - block.row_start, @rows_per_hour * 3)} * 1.5rem);"}
+                      >
+                        <.form for={%{}} phx-submit="save_item" phx-value-item_id={block.item.id} class="space-y-1">
+                          <div class="flex items-center gap-2">
+                            <input
+                              type="time"
+                              name="time"
+                              value={format_time(block.item.time_value)}
+                              class="input input-xs input-bordered w-24 bg-base-100"
+                            />
+                            <%= if @confirm_delete == block.item.id do %>
+                              <button
+                                type="button"
+                                phx-click="confirm_delete_item"
+                                phx-value-item_id={block.item.id}
+                                class="btn btn-xs btn-error"
+                              >
+                                確定刪除？
+                              </button>
+                            <% else %>
+                              <button
+                                type="button"
+                                phx-click="delete_item"
+                                phx-value-item_id={block.item.id}
+                                class="btn btn-xs btn-error btn-outline"
+                              >
+                                ✕
+                              </button>
+                            <% end %>
+                          </div>
+                          <textarea
+                            name="description"
+                            rows="2"
+                            class="textarea textarea-bordered textarea-xs w-full bg-base-100"
+                            phx-hook="AutoFocus"
+                            id={"edit-desc-#{block.item.id}"}
+                          ><%= block.item.description %></textarea>
+                          <div class="flex gap-1">
+                            <button type="submit" class="btn btn-xs btn-primary">Save</button>
+                            <button type="button" phx-click="cancel_edit" class="btn btn-xs btn-ghost">Cancel</button>
+                          </div>
+                        </.form>
                       </div>
-                      <%= if block.item.sub_items && block.item.sub_items != [] do %>
-                        <div class="mt-1 space-y-0.5 text-xs leading-tight text-base-content/70">
-                          <%= for sub <- block.item.sub_items do %>
-                            <div class="pl-2">
-                              <%= if String.starts_with?(sub, "🖊️") do %>
-                                <span class="text-base-content/50 italic">✏ <%= String.trim_leading(sub, "🖊️ ") %></span>
-                              <% else %>
-                                <%= sub %>
-                              <% end %>
-                            </div>
-                          <% end %>
+                    <% else %>
+                      <%!-- Display mode --%>
+                      <div
+                        class="absolute inset-x-1 rounded-lg bg-primary/15 border-l-4 border-primary px-2 py-1 overflow-y-auto cursor-pointer hover:bg-primary/25 transition-colors z-10"
+                        style={"top: calc((#{block.row_start} - 1) * 1.5rem); height: calc((#{block.row_end} - #{block.row_start}) * 1.5rem);"}
+                        phx-click="edit_item"
+                        phx-value-item_id={block.item.id}
+                      >
+                        <div class="flex items-baseline gap-2">
+                          <span class="text-xs font-semibold text-primary shrink-0">
+                            <%= format_time(block.item.time_value) %>
+                          </span>
+                          <span class="text-sm font-bold leading-tight">
+                            <%= block.item.description %>
+                          </span>
                         </div>
-                      <% end %>
-                    </div>
+                        <%= if block.item.sub_items && block.item.sub_items != [] do %>
+                          <div class="mt-1 space-y-0.5 text-xs leading-tight text-base-content/70">
+                            <%= for sub <- block.item.sub_items do %>
+                              <div class="pl-2">
+                                <%= if String.starts_with?(sub, "🖊️") do %>
+                                  <span class="text-base-content/50 italic">✏ <%= String.trim_leading(sub, "🖊️ ") %></span>
+                                <% else %>
+                                  <%= sub %>
+                                <% end %>
+                              </div>
+                            <% end %>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
                   <% end %>
                 </div>
               </div>
@@ -227,5 +300,67 @@ defmodule JacalendarWeb.TripLive do
     {:noreply,
      socket
      |> push_navigate(to: ~p"/trip/#{itinerary.id}/#{new_day_number}")}
+  end
+
+  def handle_event("add_item", %{"hour" => hour_str, "day_id" => day_id_str}, socket) do
+    hour = String.to_integer(hour_str)
+    day_id = String.to_integer(day_id_str)
+    time = Time.new!(hour, 0, 0)
+
+    {:ok, item} = Itineraries.create_item(day_id, %{time_value: time, description: ""})
+
+    {:noreply,
+     socket
+     |> reload_itinerary()
+     |> assign(:editing, item.id)}
+  end
+
+  def handle_event("edit_item", %{"item_id" => item_id_str}, socket) do
+    item_id = String.to_integer(item_id_str)
+    {:noreply, socket |> assign(:editing, item_id) |> assign(:confirm_delete, nil)}
+  end
+
+  def handle_event("save_item", %{"item_id" => item_id_str, "time" => time_str, "description" => description}, socket) do
+    item = Itineraries.get_item!(String.to_integer(item_id_str))
+
+    time_value =
+      case Time.from_iso8601(time_str <> ":00") do
+        {:ok, t} -> t
+        _ -> item.time_value
+      end
+
+    Itineraries.update_item(item, %{time_value: time_value, description: description})
+
+    {:noreply,
+     socket
+     |> reload_itinerary()
+     |> assign(:editing, nil)}
+  end
+
+  def handle_event("cancel_edit", _params, socket) do
+    {:noreply, socket |> assign(:editing, nil) |> assign(:confirm_delete, nil)}
+  end
+
+  def handle_event("delete_item", %{"item_id" => item_id_str}, socket) do
+    {:noreply, assign(socket, :confirm_delete, String.to_integer(item_id_str))}
+  end
+
+  def handle_event("confirm_delete_item", %{"item_id" => item_id_str}, socket) do
+    item = Itineraries.get_item!(String.to_integer(item_id_str))
+    Itineraries.delete_item(item)
+
+    {:noreply,
+     socket
+     |> reload_itinerary()
+     |> assign(:editing, nil)
+     |> assign(:confirm_delete, nil)}
+  end
+
+  def handle_event("keydown", %{"key" => "Escape"}, socket) do
+    {:noreply, assign(socket, :editing, nil)}
+  end
+
+  def handle_event("keydown", _params, socket) do
+    {:noreply, socket}
   end
 end
